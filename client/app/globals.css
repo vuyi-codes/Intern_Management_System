@@ -120,6 +120,20 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 35%, transparent)
+      transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 0.35em;
+    height: 0.35em;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 35%, transparent);
+    border-radius: 999px;
   }
   body {
     @apply bg-background text-foreground;

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { BadgeCheck, Bell, ChevronsUpDown, LogOut } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -53,7 +54,12 @@ function UserInfo({ user }: { user: User }) {
 }
 
 export function NavUser({ user }: { user: User }) {
+  const router = useRouter()
   const { isMobile } = useSidebar()
+
+  function handleLogout() {
+    router.push("/login")
+  }
 
   return (
     <SidebarMenu>
@@ -100,7 +106,7 @@ export function NavUser({ user }: { user: User }) {
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem render={<Link href="/login" />}>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Log out
             </DropdownMenuItem>
