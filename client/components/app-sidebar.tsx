@@ -26,18 +26,28 @@ import {
 } from "@/lib/nav"
 
 // Placeholder until real auth is added.
-const user = {
-  name: "Admin User",
-  email: "admin@inkdot.com",
-}
+const usersByRole = {
+  intern: {
+    name: "Intern User",
+    email: "intern@inkdot.com",
+  },
+  supervisor: {
+    name: "Supervisor User",
+    email: "supervisor@inkdot.com",
+  },
+  admin: {
+    name: "Admin User",
+    email: "admin@inkdot.com",
+  },
+} as const
 
 export function AppSidebar() {
   const pathname = usePathname()
 
-  // Only the admin dashboard exists for now, so fall back to it.
-  // Once /intern and /supervisor exist, this picks the right menu automatically.
+  // Role comes from the first URL segment, e.g. /supervisor/tasks -> supervisor.
   const role = getRoleFromPathname(pathname) ?? "admin"
   const items = getNavForRole(role)
+  const user = usersByRole[role]
 
   // Split the links: normal ones go in the main list, "bottom" ones
   // (like Settings) go in the footer above the user menu.
