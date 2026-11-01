@@ -210,7 +210,6 @@ export function SupervisorOverviewBarChart() {
       data={supervisorBarChartData}
       config={supervisorBarChartConfig}
       series={["tasks", "reviews"]}
-      horizontal
     />
   )
 }
