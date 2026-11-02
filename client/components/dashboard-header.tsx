@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 
+import { CalendarDropdown } from "@/components/calendar-dropdown"
 import { MessagesDrawer } from "@/components/messages-drawer"
 import { NavbarSearch } from "@/components/navbar-search"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -14,8 +15,13 @@ export function DashboardHeader() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger />
-      <div className="ml-auto flex min-w-0 items-center gap-2">
+      <div className="ml-auto flex min-w-0 items-center gap-4">
         {role && <NavbarSearch role={role} />}
+        {role && (
+          <div className="shrink-0">
+            <CalendarDropdown role={role} />
+          </div>
+        )}
         {role && (role === "intern" || role === "supervisor") && (
           <div className="shrink-0">
             <MessagesDrawer role={role} />

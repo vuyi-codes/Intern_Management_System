@@ -24,22 +24,7 @@ import {
   isNavItemActive,
   roleLabels,
 } from "@/lib/nav"
-
-// Placeholder until real auth is added.
-const usersByRole = {
-  intern: {
-    name: "Intern User",
-    email: "intern@inkdot.com",
-  },
-  supervisor: {
-    name: "Supervisor User",
-    email: "supervisor@inkdot.com",
-  },
-  admin: {
-    name: "Admin User",
-    email: "admin@inkdot.com",
-  },
-} as const
+import { getUserForRole } from "@/lib/users"
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -47,7 +32,7 @@ export function AppSidebar() {
   // Role comes from the first URL segment, e.g. /supervisor/tasks -> supervisor.
   const role = getRoleFromPathname(pathname) ?? "admin"
   const items = getNavForRole(role)
-  const user = usersByRole[role]
+  const user = getUserForRole(role)
 
   // Split the links: normal ones go in the main list, "bottom" ones
   // (like Settings) go in the footer above the user menu.
