@@ -19,11 +19,11 @@ export const usersByRole: Record<Role, AppUser> = {
     department: "Product Engineering",
   },
   supervisor: {
-    name: "Supervisor User",
-    email: "supervisor@inkdot.com",
+    name: "Jordan Peters",
+    email: "jordan.peters@inkdot.com",
     phone: "+27 82 555 0198",
-    title: "Internship Supervisor",
-    department: "People & Learning",
+    title: "Senior Engineering Mentor",
+    department: "Product Engineering",
   },
   admin: {
     name: "Admin User",

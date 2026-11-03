@@ -206,3 +206,7 @@ export function getInternInitials(name: string) {
     .slice(0, 2)
     .toUpperCase()
 }
+
+export function getInternsForSupervisor(supervisorName: string) {
+  return interns.filter((intern) => intern.supervisor === supervisorName)
+}
