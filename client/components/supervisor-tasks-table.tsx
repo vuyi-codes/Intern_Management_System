@@ -54,9 +54,9 @@ export function SupervisorTasksTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tasks due this week</CardTitle>
+        <CardTitle>Assigned tasks</CardTitle>
         <CardDescription>
-          Assigned work across your interns that needs attention.
+          Work currently assigned across your interns.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -66,36 +66,49 @@ export function SupervisorTasksTable() {
               <TableHead>Task</TableHead>
               <TableHead>Intern</TableHead>
               <TableHead>Due date</TableHead>
-              <TableHead>Priority</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageRows.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell className="font-medium">{item.title}</TableCell>
-                <TableCell>{item.intern}</TableCell>
-                <TableCell>{formatTaskDate(item.dueDate)}</TableCell>
-                <TableCell>{item.priority}</TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-sm px-2 py-0.5 text-xs font-medium",
-                      TASK_STATUS_STYLES[item.status]
-                    )}
-                  >
-                    {item.status}
-                  </span>
+            {pageRows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="h-24 text-center text-muted-foreground"
+                >
+                  No tasks assigned yet.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              pageRows.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.title}</TableCell>
+                  <TableCell>{item.intern}</TableCell>
+                  <TableCell>{formatTaskDate(item.dueDate)}</TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex rounded-sm px-2 py-0.5 text-xs font-medium",
+                        TASK_STATUS_STYLES[item.status]
+                      )}
+                    >
+                      {item.status}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>
       <CardFooter className="justify-between gap-4 border-t bg-transparent">
         <p className="text-sm text-muted-foreground">
-          Showing {startIndex + 1}–
-          {Math.min(startIndex + PAGE_SIZE, tasks.length)} of {tasks.length}
+          {tasks.length === 0
+            ? "No results"
+            : `Showing ${startIndex + 1}–${Math.min(
+                startIndex + PAGE_SIZE,
+                tasks.length
+              )} of ${tasks.length}`}
         </p>
         <Pagination className="mx-0 w-auto justify-end">
           <PaginationContent>

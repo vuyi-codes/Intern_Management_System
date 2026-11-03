@@ -135,6 +135,60 @@ export const supervisorTasks: SupervisorTask[] = [
     priority: "Low",
     status: "In progress",
   },
+  {
+    id: "tsk-013",
+    title: "Submit weekly daily logs",
+    description: "Catch up on missing daily log entries for this week.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-04-03",
+    priority: "Medium",
+    status: "In progress",
+  },
+  {
+    id: "tsk-014",
+    title: "Update profile details",
+    description: "Refresh programme dates, skills, and emergency contacts.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-04-05",
+    priority: "Low",
+    status: "In progress",
+  },
+  {
+    id: "tsk-015",
+    title: "Polish dashboard cards",
+    description: "Tighten spacing and hover states on overview stat cards.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-03-30",
+    priority: "Medium",
+    status: "Done",
+  },
+  {
+    id: "tsk-016",
+    title: "Push chart layout fixes",
+    description: "Resolve overflow on the progress chart at tablet widths.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-04-04",
+    priority: "High",
+    status: "Done",
+  },
+  {
+    id: "tsk-017",
+    title: "Write progress reflection notes",
+    description: "Draft mid-programme reflection for supervisor review.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-04-07",
+    priority: "Low",
+    status: "In progress",
+  },
+  {
+    id: "tsk-018",
+    title: "Fix login form validation",
+    description: "Address the overdue validation bugs flagged in review.",
+    intern: "Nomsa Khumalo",
+    dueDate: "2026-03-28",
+    priority: "High",
+    status: "Overdue",
+  },
 ]
 
 export function formatTaskDate(value: string) {
@@ -150,4 +204,8 @@ export function getTasksForSupervisor(supervisorName: string) {
     getInternsForSupervisor(supervisorName).map((intern) => intern.name)
   )
   return supervisorTasks.filter((task) => assignedNames.has(task.intern))
+}
+
+export function getTasksForIntern(internName: string) {
+  return supervisorTasks.filter((task) => task.intern === internName)
 }

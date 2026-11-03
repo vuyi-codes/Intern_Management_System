@@ -153,6 +153,12 @@ export function getDailyLogsForSupervisor(supervisorName: string) {
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+export function getDailyLogsForIntern(internName: string) {
+  return dailyLogs
+    .filter((log) => log.intern === internName)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+}
+
 export function isSameLogDay(value: string, reference = new Date()) {
   const date = new Date(value)
   return (

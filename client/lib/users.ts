@@ -12,8 +12,8 @@ export type AppUser = {
 // Placeholder until real auth is added.
 export const usersByRole: Record<Role, AppUser> = {
   intern: {
-    name: "Intern User",
-    email: "intern@inkdot.com",
+    name: "Nomsa Khumalo",
+    email: "nomsa.khumalo@inkdot.com",
     phone: "+27 82 555 0142",
     title: "Software Engineering Intern",
     department: "Product Engineering",
