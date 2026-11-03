@@ -2,10 +2,18 @@
 
 import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { BadgeCheck, Bell, ChevronsUpDown, LogOut } from "lucide-react"
+import {
+  BadgeCheck,
+  Bell,
+  ChevronsUpDown,
+  LogOut,
+  Moon,
+  Sun,
+} from "lucide-react"
 
 import { AccountSettings } from "@/components/account-settings"
 import { NotificationsPanel } from "@/components/notifications-panel"
+import { useTheme } from "@/hooks/use-theme"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Dialog,
@@ -69,6 +77,7 @@ export function NavUser({ user }: { user: User }) {
   const pathname = usePathname()
   const { isMobile } = useSidebar()
   const role = (getRoleFromPathname(pathname) ?? "admin") as Role
+  const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
@@ -148,6 +157,10 @@ export function NavUser({ user }: { user: User }) {
                 <DropdownMenuItem onClick={openNotifications}>
                   <Bell />
                   Notifications
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toggleTheme()}>
+                  {theme === "dark" ? <Sun /> : <Moon />}
+                  {theme === "dark" ? "Light mode" : "Dark mode"}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
 
