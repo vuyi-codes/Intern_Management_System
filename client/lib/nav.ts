@@ -38,6 +38,12 @@ export const navByRole: Record<Role, NavItem[]> = {
     { title: "Daily Log", href: "/intern/daily-log", icon: NotebookPen },
     { title: "Progress", href: "/intern/progress", icon: TrendingUp },
     { title: "Profile", href: "/intern/profile", icon: User },
+    {
+      title: "Settings",
+      href: "/intern/settings",
+      icon: Settings,
+      placement: "bottom",
+    },
   ],
   supervisor: [
     { title: "Overview", href: "/supervisor", icon: LayoutDashboard },
@@ -45,6 +51,12 @@ export const navByRole: Record<Role, NavItem[]> = {
     { title: "Tasks", href: "/supervisor/tasks", icon: ListTodo },
     { title: "Reviews", href: "/supervisor/reviews", icon: ClipboardCheck },
     { title: "Daily Logs", href: "/supervisor/logs", icon: ScrollText },
+    {
+      title: "Settings",
+      href: "/supervisor/settings",
+      icon: Settings,
+      placement: "bottom",
+    },
   ],
   admin: [
     { title: "Overview", href: "/admin", icon: LayoutDashboard },
