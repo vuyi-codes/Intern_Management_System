@@ -37,6 +37,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { signOut } from "@/app/actions/auth"
 import { getStoredAvatar } from "@/lib/avatars"
 import { getRoleFromPathname, type Role } from "@/lib/nav"
 
@@ -102,7 +103,8 @@ export function NavUser({ user }: { user: User }) {
 
   const displayUser = { ...user, avatar }
 
-  function handleLogout() {
+  async function handleLogout() {
+    await signOut()
     router.push("/login")
   }
 

@@ -29,20 +29,27 @@ import {
 } from "@/components/ui/sidebar"
 import {
   getNavForRole,
-  getRoleFromPathname,
   isNavItemActive,
   roleLabels,
+  type Role,
 } from "@/lib/nav"
-import { getUserForRole } from "@/lib/users"
 
-export function AppSidebar() {
+type SidebarUser = {
+  name: string
+  email: string
+  avatar?: string
+}
+
+type AppSidebarProps = {
+  role: Role
+  user: SidebarUser
+}
+
+export function AppSidebar({ role, user }: AppSidebarProps) {
   const pathname = usePathname()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
 
-  // Role comes from the first URL segment, e.g. /supervisor/tasks -> supervisor.
-  const role = getRoleFromPathname(pathname) ?? "admin"
   const items = getNavForRole(role)
-  const user = getUserForRole(role)
 
   const mainItems = items.filter((item) => item.placement !== "bottom")
   const footerItems = items.filter((item) => item.placement === "bottom")

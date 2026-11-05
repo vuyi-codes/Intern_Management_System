@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Auth + Supabase session reads (and DayPicker) use the current time.
+  // Cache Components prerender fights that and breaks post-login navigations.
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {

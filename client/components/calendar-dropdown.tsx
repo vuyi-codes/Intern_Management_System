@@ -355,24 +355,28 @@ export function CalendarDropdown({ role }: { role: Role }) {
           </div>
 
           <div className="p-2">
-            <Calendar
-              mode="single"
-              selected={selected}
-              onSelect={(date) => {
-                if (date) selectDate(date)
-                else setSelected(date)
-              }}
-              month={month}
-              onMonthChange={setMonth}
-              modifiers={{
-                hasEvent: eventDays,
-              }}
-              modifiersClassNames={{
-                hasEvent:
-                  "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary",
-              }}
-              className="rounded-sm"
-            />
+            {/* Mount only when open — DayPicker reads new Date() for "today",
+                which breaks Cache Components prerender / post-login RSC. */}
+            {open && today && (
+              <Calendar
+                mode="single"
+                selected={selected}
+                onSelect={(date) => {
+                  if (date) selectDate(date)
+                  else setSelected(date)
+                }}
+                month={month}
+                onMonthChange={setMonth}
+                modifiers={{
+                  hasEvent: eventDays,
+                }}
+                modifiersClassNames={{
+                  hasEvent:
+                    "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary",
+                }}
+                className="rounded-sm"
+              />
+            )}
           </div>
         </div>
 

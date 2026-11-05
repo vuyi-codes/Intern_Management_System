@@ -15,7 +15,10 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
+copy .env.example .env
 ```
+
+Fill in `SUPABASE_URL` and `SUPABASE_KEY` in `.env` (already gitignored).
 
 ## Run
 
@@ -28,3 +31,4 @@ Then open:
 - API: http://127.0.0.1:8000
 - Docs: http://127.0.0.1:8000/docs
 - Health: http://127.0.0.1:8000/health
+- Supabase: http://127.0.0.1:8000/health/supabase

@@ -1,12 +1,23 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { usePathname } from "next/navigation"
 
-import { CalendarDropdown } from "@/components/calendar-dropdown"
-import { MessagesDrawer } from "@/components/messages-drawer"
 import { NavbarSearch } from "@/components/navbar-search"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { getRoleFromPathname } from "@/lib/nav"
+
+// Client-only: these widgets touch Date.now() / DayPicker "today".
+const CalendarDropdown = dynamic(
+  () =>
+    import("@/components/calendar-dropdown").then((mod) => mod.CalendarDropdown),
+  { ssr: false }
+)
+const MessagesDrawer = dynamic(
+  () =>
+    import("@/components/messages-drawer").then((mod) => mod.MessagesDrawer),
+  { ssr: false }
+)
 
 export function DashboardHeader() {
   const pathname = usePathname()

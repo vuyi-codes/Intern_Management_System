@@ -3,6 +3,8 @@ import { GalleryVerticalEnd } from "lucide-react"
 
 import { LoginForm } from "@/components/login-form"
 
+export const instant = false
+
 export default function LoginPage() {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
