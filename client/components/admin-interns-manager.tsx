@@ -79,17 +79,25 @@ const STATUS_FILTERS: Array<"All" | InternStatus> = [
   "Completed",
 ]
 
-const emptyForm = {
+type InternForm = {
+  name: string
+  email: string
+  programme: (typeof PROGRAMMES)[number]
+  supervisor: (typeof SUPERVISORS)[number]
+  startDate: string
+  endDate: string
+  status: InternStatus
+}
+
+const emptyForm: InternForm = {
   name: "",
   email: "",
   programme: PROGRAMMES[0],
   supervisor: SUPERVISORS[0],
   startDate: "",
   endDate: "",
-  status: "Onboarding" as InternStatus,
+  status: "Onboarding",
 }
-
-type InternForm = typeof emptyForm
 
 function StatCard({
   label,

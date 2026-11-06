@@ -4,13 +4,12 @@ import { redirect } from "next/navigation"
 
 import { dashboardPathForRole, getCurrentProfile } from "@/lib/auth"
 
-export const instant = false
-
 async function HomeRedirect() {
   await connection()
   const profile = await getCurrentProfile()
   if (!profile) redirect("/login")
   redirect(dashboardPathForRole(profile.role))
+  return null
 }
 
 export default function Home() {

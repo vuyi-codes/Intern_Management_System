@@ -6,8 +6,6 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { requireAuth } from "@/lib/auth"
 
-export const instant = false
-
 function DashboardFallback() {
   return (
     <div className="flex min-h-svh items-center justify-center p-6">
