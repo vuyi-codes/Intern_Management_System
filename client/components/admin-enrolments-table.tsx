@@ -28,21 +28,21 @@ import {
 } from "@/components/ui/table"
 import {
   formatInternDate,
-  interns,
   STATUS_STYLES,
   type InternStatus,
 } from "@/lib/interns"
+import type { AdminIntern } from "@/lib/admin-data"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 5
 
-const enrolments = [...interns]
-  .sort((a, b) => b.startDate.localeCompare(a.startDate))
-  .slice(0, 12)
-
-export function AdminEnrolmentsTable() {
+export function AdminEnrolmentsTable({
+  enrolments,
+}: {
+  enrolments: AdminIntern[]
+}) {
   const [page, setPage] = React.useState(1)
-  const totalPages = Math.ceil(enrolments.length / PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(enrolments.length / PAGE_SIZE))
   const startIndex = (page - 1) * PAGE_SIZE
   const pageRows = enrolments.slice(startIndex, startIndex + PAGE_SIZE)
 

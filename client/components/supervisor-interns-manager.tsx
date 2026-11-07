@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -11,6 +12,9 @@ import {
   NotebookPen,
   Search,
 } from "lucide-react"
+
+import { updateAssignedInternStatus } from "@/app/actions/supervisor-records"
+import type { SupervisorIntern } from "@/lib/supervisor-data"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -56,13 +60,9 @@ import {
 import {
   formatInternDate,
   getInternInitials,
-  getInternsForSupervisor,
-  PROGRAMMES,
   STATUS_STYLES,
-  type Intern,
   type InternStatus,
 } from "@/lib/interns"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -74,43 +74,6 @@ const STATUS_FILTERS: Array<"All" | InternStatus> = [
   "Paused",
   "Completed",
 ]
-
-/** Extra mentor-facing details for the demo supervisor roster. */
-const internExtras: Record<
-  string,
-  { openTasks: number; pendingReviews: number; lastLog: string; focus: string }
-> = {
-  "int-001": {
-    openTasks: 3,
-    pendingReviews: 1,
-    lastLog: "Yesterday",
-    focus: "Intern overview & dashboard polish",
-  },
-  "int-003": {
-    openTasks: 2,
-    pendingReviews: 0,
-    lastLog: "2 days ago",
-    focus: "Auth middleware onboarding",
-  },
-  "int-007": {
-    openTasks: 4,
-    pendingReviews: 2,
-    lastLog: "Today",
-    focus: "API services and testing",
-  },
-  "int-010": {
-    openTasks: 2,
-    pendingReviews: 1,
-    lastLog: "Today",
-    focus: "Component library work",
-  },
-  "int-013": {
-    openTasks: 0,
-    pendingReviews: 0,
-    lastLog: "Completed",
-    focus: "Frontend track wrap-up",
-  },
-}
 
 function StatCard({
   label,
@@ -134,35 +97,28 @@ function StatCard({
   )
 }
 
-function getExtras(internId: string) {
-  return (
-    internExtras[internId] ?? {
-      openTasks: 1,
-      pendingReviews: 0,
-      lastLog: "—",
-      focus: "General programme work",
-    }
-  )
-}
-
-export function SupervisorInternsManager() {
-  const supervisor = getUserForRole("supervisor")
-  const seed = React.useMemo(
-    () => getInternsForSupervisor(supervisor.name),
-    [supervisor.name]
-  )
-
-  const [internList, setInternList] = React.useState<Intern[]>(seed)
+export function SupervisorInternsManager({
+  interns,
+  supervisorName,
+}: {
+  interns: SupervisorIntern[]
+  supervisorName: string
+}) {
+  const router = useRouter()
+  const [internList, setInternList] = React.useState<SupervisorIntern[]>(interns)
+  const [notice, setNotice] = React.useState("")
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [programmeFilter, setProgrammeFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
-  const [viewIntern, setViewIntern] = React.useState<Intern | null>(null)
+  const [viewIntern, setViewIntern] = React.useState<SupervisorIntern | null>(
+    null
+  )
 
   React.useEffect(() => {
-    setInternList(getInternsForSupervisor(supervisor.name))
-  }, [supervisor.name])
+    setInternList(interns)
+  }, [interns])
 
   const programmes = React.useMemo(() => {
     const values = new Set(internList.map((intern) => intern.programme))
@@ -172,13 +128,12 @@ export function SupervisorInternsManager() {
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
     return internList.filter((intern) => {
-      const extras = getExtras(intern.id)
       const matchesQuery =
         !q ||
         intern.name.toLowerCase().includes(q) ||
         intern.email.toLowerCase().includes(q) ||
         intern.programme.toLowerCase().includes(q) ||
-        extras.focus.toLowerCase().includes(q)
+        intern.focus.toLowerCase().includes(q)
       const matchesStatus =
         statusFilter === "All" || intern.status === statusFilter
       const matchesProgramme =
@@ -201,7 +156,7 @@ export function SupervisorInternsManager() {
     const onboarding = internList.filter((i) => i.status === "Onboarding").length
     const paused = internList.filter((i) => i.status === "Paused").length
     const openTasks = internList.reduce(
-      (sum, intern) => sum + getExtras(intern.id).openTasks,
+      (sum, intern) => sum + intern.openTasks,
       0
     )
     return {
@@ -217,10 +172,14 @@ export function SupervisorInternsManager() {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
   }
 
-  function updateStatus(id: string, status: InternStatus) {
-    setInternList((prev) =>
-      prev.map((intern) => (intern.id === id ? { ...intern, status } : intern))
-    )
+  async function updateStatus(id: string, status: InternStatus) {
+    setNotice("")
+    const result = await updateAssignedInternStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
   return (
@@ -229,8 +188,9 @@ export function SupervisorInternsManager() {
         <h1 className="text-2xl font-semibold">My Interns</h1>
         <p className="text-sm text-muted-foreground">
           Track progress, logs, and follow-ups for interns assigned to{" "}
-          {supervisor.name}.
+          {supervisorName}.
         </p>
+        {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
       </div>
 
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -296,20 +256,18 @@ export function SupervisorInternsManager() {
                   All programmes
                   {programmeFilter === "All" && <Check className="size-4" />}
                 </DropdownMenuItem>
-                {(programmes.length > 0 ? programmes : [...PROGRAMMES]).map(
-                  (programme) => (
-                    <DropdownMenuItem
-                      key={programme}
-                      onClick={() => setProgrammeFilter(programme)}
-                      className="justify-between"
-                    >
-                      {programme}
-                      {programmeFilter === programme && (
-                        <Check className="size-4" />
-                      )}
-                    </DropdownMenuItem>
-                  )
-                )}
+                {programmes.map((programme) => (
+                  <DropdownMenuItem
+                    key={programme}
+                    onClick={() => setProgrammeFilter(programme)}
+                    className="justify-between"
+                  >
+                    {programme}
+                    {programmeFilter === programme && (
+                      <Check className="size-4" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -360,7 +318,6 @@ export function SupervisorInternsManager() {
                 </TableRow>
               ) : (
                 pageRows.map((intern) => {
-                  const extras = getExtras(intern.id)
                   return (
                     <TableRow key={intern.id}>
                       <TableCell className="max-w-[14rem] pl-4 sm:pl-0">
@@ -400,17 +357,17 @@ export function SupervisorInternsManager() {
                       <TableCell className="hidden sm:table-cell">
                         <div className="flex flex-col gap-0.5 text-sm">
                           <span className="tabular-nums">
-                            {extras.openTasks} task
-                            {extras.openTasks === 1 ? "" : "s"}
+                            {intern.openTasks} task
+                            {intern.openTasks === 1 ? "" : "s"}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {extras.pendingReviews} review
-                            {extras.pendingReviews === 1 ? "" : "s"}
+                            {intern.pendingReviews} review
+                            {intern.pendingReviews === 1 ? "" : "s"}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap lg:table-cell">
-                        {extras.lastLog}
+                        {intern.lastLog}
                       </TableCell>
                       <TableCell>
                         <span
@@ -605,31 +562,25 @@ export function SupervisorInternsManager() {
                   value={`${viewIntern.progress}%`}
                 />
                 <DetailRow label="Status" value={viewIntern.status} />
-                <DetailRow
-                  label="Focus"
-                  value={getExtras(viewIntern.id).focus}
-                />
-                <DetailRow
-                  label="Last log"
-                  value={getExtras(viewIntern.id).lastLog}
-                />
+                <DetailRow label="Focus" value={viewIntern.focus} />
+                <DetailRow label="Last log" value={viewIntern.lastLog} />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <QuickStat
                   icon={ListTodo}
                   label="Tasks"
-                  value={getExtras(viewIntern.id).openTasks}
+                  value={viewIntern.openTasks}
                 />
                 <QuickStat
                   icon={ClipboardCheck}
                   label="Reviews"
-                  value={getExtras(viewIntern.id).pendingReviews}
+                  value={viewIntern.pendingReviews}
                 />
                 <QuickStat
                   icon={NotebookPen}
                   label="Logs"
-                  value={getExtras(viewIntern.id).lastLog === "Today" ? 1 : 0}
+                  value={viewIntern.lastLog === "Today" ? 1 : 0}
                 />
               </div>
 

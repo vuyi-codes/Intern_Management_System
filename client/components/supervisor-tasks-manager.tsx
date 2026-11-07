@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -9,6 +10,17 @@ import {
   Plus,
   Search,
 } from "lucide-react"
+
+import {
+  assignTask,
+  deleteTask,
+  updateTask,
+  updateTaskStatus,
+} from "@/app/actions/supervisor-records"
+import type {
+  NamedIntern,
+  SupervisorTaskRecord,
+} from "@/lib/supervisor-data"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -57,17 +69,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { getInternsForSupervisor } from "@/lib/interns"
 import {
   formatTaskDate,
-  getTasksForSupervisor,
   TASK_PRIORITY_STYLES,
   TASK_STATUS_STYLES,
-  type SupervisorTask,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/tasks"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -90,7 +98,7 @@ const PRIORITY_FILTERS: Array<"All" | TaskPriority> = [
 const emptyForm = {
   title: "",
   description: "",
-  intern: "",
+  internId: "",
   dueDate: "",
   priority: "Medium" as TaskPriority,
   status: "In progress" as TaskStatus,
@@ -120,20 +128,19 @@ function StatCard({
   )
 }
 
-export function SupervisorTasksManager() {
-  const supervisor = getUserForRole("supervisor")
-  const myInterns = React.useMemo(
-    () => getInternsForSupervisor(supervisor.name),
-    [supervisor.name]
-  )
-  const internNames = React.useMemo(
-    () => myInterns.map((intern) => intern.name),
-    [myInterns]
-  )
-
-  const [taskList, setTaskList] = React.useState<SupervisorTask[]>(() =>
-    getTasksForSupervisor(supervisor.name)
-  )
+export function SupervisorTasksManager({
+  tasks,
+  interns,
+  supervisorName,
+}: {
+  tasks: SupervisorTaskRecord[]
+  interns: NamedIntern[]
+  supervisorName: string
+}) {
+  const router = useRouter()
+  const [taskList, setTaskList] = React.useState<SupervisorTaskRecord[]>(tasks)
+  const [notice, setNotice] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
@@ -142,16 +149,20 @@ export function SupervisorTasksManager() {
   const [internFilter, setInternFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [assignOpen, setAssignOpen] = React.useState(false)
-  const [viewTask, setViewTask] = React.useState<SupervisorTask | null>(null)
-  const [editTask, setEditTask] = React.useState<SupervisorTask | null>(null)
+  const [viewTask, setViewTask] = React.useState<SupervisorTaskRecord | null>(
+    null
+  )
+  const [editTask, setEditTask] = React.useState<SupervisorTaskRecord | null>(
+    null
+  )
   const [form, setForm] = React.useState<TaskForm>({
     ...emptyForm,
-    intern: internNames[0] ?? "",
+    internId: interns[0]?.id ?? "",
   })
 
   React.useEffect(() => {
-    setTaskList(getTasksForSupervisor(supervisor.name))
-  }, [supervisor.name])
+    setTaskList(tasks)
+  }, [tasks])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -196,78 +207,88 @@ export function SupervisorTasksManager() {
   function openAssign() {
     setForm({
       ...emptyForm,
-      intern: internNames[0] ?? "",
+      internId: interns[0]?.id ?? "",
     })
     setAssignOpen(true)
   }
 
-  function openEdit(task: SupervisorTask) {
+  function openEdit(task: SupervisorTaskRecord) {
     setEditTask(task)
     setForm({
       title: task.title,
       description: task.description,
-      intern: task.intern,
+      internId: task.internId,
       dueDate: task.dueDate,
       priority: task.priority,
       status: task.status,
     })
   }
 
-  function updateStatus(id: string, status: TaskStatus) {
-    setTaskList((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, status } : task))
-    )
+  async function updateStatus(id: string, status: TaskStatus) {
+    setNotice("")
+    const result = await updateTaskStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function removeTask(id: string) {
-    setTaskList((prev) => prev.filter((task) => task.id !== id))
+  async function removeTask(id: string) {
+    setNotice("")
+    const result = await deleteTask(id)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setViewTask((current) => (current?.id === id ? null : current))
+    router.refresh()
   }
 
-  function handleAssign(event: React.FormEvent) {
+  async function handleAssign(event: React.FormEvent) {
     event.preventDefault()
-    if (!form.title.trim() || !form.intern || !form.dueDate) return
-
-    const next: SupervisorTask = {
-      id: `tsk-${Date.now()}`,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      intern: form.intern,
+    if (!form.title.trim() || !form.internId || !form.dueDate) return
+    setSaving(true)
+    setNotice("")
+    const result = await assignTask({
+      title: form.title,
+      description: form.description,
+      internId: form.internId,
       dueDate: form.dueDate,
       priority: form.priority,
       status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
     }
-
-    setTaskList((prev) => [next, ...prev])
     setAssignOpen(false)
-    setForm({ ...emptyForm, intern: internNames[0] ?? "" })
-    setStatusFilter("All")
-    setPriorityFilter("All")
-    setInternFilter("All")
-    setQuery("")
-    setPage(1)
+    setForm({ ...emptyForm, internId: interns[0]?.id ?? "" })
+    router.refresh()
   }
 
-  function handleEdit(event: React.FormEvent) {
+  async function handleEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editTask) return
-
-    setTaskList((prev) =>
-      prev.map((task) =>
-        task.id === editTask.id
-          ? {
-              ...task,
-              title: form.title.trim(),
-              description: form.description.trim(),
-              intern: form.intern,
-              dueDate: form.dueDate,
-              priority: form.priority,
-              status: form.status,
-            }
-          : task
-      )
-    )
+    setSaving(true)
+    setNotice("")
+    const result = await updateTask({
+      id: editTask.id,
+      title: form.title,
+      description: form.description,
+      internId: form.internId,
+      dueDate: form.dueDate,
+      priority: form.priority,
+      status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setEditTask(null)
+    router.refresh()
   }
 
   const triggerClass = cn(
@@ -281,8 +302,9 @@ export function SupervisorTasksManager() {
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-2xl font-semibold">Tasks</h1>
           <p className="text-sm text-muted-foreground">
-            Assign and track work across interns mentored by {supervisor.name}.
+            Assign and track work across interns mentored by {supervisorName}.
           </p>
+          {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
         </div>
         <Button onClick={openAssign} className="w-full shrink-0 sm:w-auto">
           <Plus />
@@ -348,14 +370,16 @@ export function SupervisorTasksManager() {
                   All interns
                   {internFilter === "All" && <Check className="size-4" />}
                 </DropdownMenuItem>
-                {internNames.map((name) => (
+                {interns.map((intern) => (
                   <DropdownMenuItem
-                    key={name}
-                    onClick={() => setInternFilter(name)}
+                    key={intern.id}
+                    onClick={() => setInternFilter(intern.name)}
                     className="justify-between"
                   >
-                    {name}
-                    {internFilter === name && <Check className="size-4" />}
+                    {intern.name}
+                    {internFilter === intern.name && (
+                      <Check className="size-4" />
+                    )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -608,7 +632,7 @@ export function SupervisorTasksManager() {
               <TaskFormFields
                 form={form}
                 setForm={setForm}
-                internNames={internNames}
+                interns={interns}
               />
             </div>
             <DialogFooter className="shrink-0 p-3">
@@ -619,7 +643,7 @@ export function SupervisorTasksManager() {
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={saving}>
                 <ListTodo />
                 Assign
               </Button>
@@ -642,11 +666,7 @@ export function SupervisorTasksManager() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit}>
-            <TaskFormFields
-              form={form}
-              setForm={setForm}
-              internNames={internNames}
-            />
+            <TaskFormFields form={form} setForm={setForm} interns={interns} />
             <DialogFooter className="p-3">
               <Button
                 type="button"
@@ -655,7 +675,9 @@ export function SupervisorTasksManager() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Save changes</Button>
+              <Button type="submit" disabled={saving}>
+                Save changes
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -745,16 +767,19 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function TaskFormFields({
   form,
   setForm,
-  internNames,
+  interns,
 }: {
   form: TaskForm
   setForm: React.Dispatch<React.SetStateAction<TaskForm>>
-  internNames: string[]
+  interns: NamedIntern[]
 }) {
   const triggerClass = cn(
     buttonVariants({ variant: "outline" }),
     "h-8 w-full justify-between rounded-sm px-2.5 font-normal"
   )
+  const internLabel =
+    interns.find((intern) => intern.id === form.internId)?.name ??
+    "Select intern"
 
   return (
     <div className="grid gap-3 px-4 py-3">
@@ -776,20 +801,22 @@ function TaskFormFields({
             <FieldLabel>Intern</FieldLabel>
             <DropdownMenu>
               <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">
-                  {form.intern || "Select intern"}
-                </span>
+                <span className="truncate">{internLabel}</span>
                 <ChevronDown className="size-4 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="min-w-52">
-                {internNames.map((name) => (
+                {interns.map((intern) => (
                   <DropdownMenuItem
-                    key={name}
-                    onClick={() => setForm((prev) => ({ ...prev, intern: name }))}
+                    key={intern.id}
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, internId: intern.id }))
+                    }
                     className="justify-between"
                   >
-                    {name}
-                    {form.intern === name && <Check className="size-4" />}
+                    {intern.name}
+                    {form.internId === intern.id && (
+                      <Check className="size-4" />
+                    )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

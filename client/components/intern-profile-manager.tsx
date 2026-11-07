@@ -3,7 +3,10 @@
 import * as React from "react"
 import { Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
+import { saveInternProfileDetails } from "@/app/actions/intern-records"
+import type { InternProfileView } from "@/lib/intern-data"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -23,10 +26,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { getStoredAvatar } from "@/lib/avatars"
 import {
-  getInternProfileContext,
-  loadInternProfile,
   parseSkillsInput,
-  saveInternProfile,
   type InternProfileDetails,
 } from "@/lib/intern-profile"
 import { formatProgressDate } from "@/lib/progress"
@@ -42,24 +42,28 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 
-export function InternProfileManager() {
-  const { user, placement } = getInternProfileContext()
+export function InternProfileManager({
+  profile,
+}: {
+  profile: InternProfileView
+}) {
+  const router = useRouter()
+  const { user, placement, details: initialDetails } = profile
   const [avatar, setAvatar] = React.useState<string | undefined>(user.avatar)
-  const [details, setDetails] = React.useState<InternProfileDetails>(() =>
-    loadInternProfile(user.name)
-  )
+  const [details, setDetails] =
+    React.useState<InternProfileDetails>(initialDetails)
   const [skillsText, setSkillsText] = React.useState(() =>
-    loadInternProfile(user.name).skills.join(", ")
+    initialDetails.skills.join(", ")
   )
   const [saving, setSaving] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
+  const [error, setError] = React.useState("")
 
   React.useEffect(() => {
-    const next = loadInternProfile(user.name)
-    setDetails(next)
-    setSkillsText(next.skills.join(", "))
+    setDetails(initialDetails)
+    setSkillsText(initialDetails.skills.join(", "))
     setAvatar(getStoredAvatar("intern") ?? user.avatar)
-  }, [user.avatar, user.name])
+  }, [initialDetails, user.avatar])
 
   function updateField<K extends keyof InternProfileDetails>(
     key: K,
@@ -69,7 +73,7 @@ export function InternProfileManager() {
     setSaved(false)
   }
 
-  function handleSave(event: React.FormEvent) {
+  async function handleSave(event: React.FormEvent) {
     event.preventDefault()
     const next: InternProfileDetails = {
       ...details,
@@ -85,13 +89,17 @@ export function InternProfileManager() {
 
     setSaving(true)
     setSaved(false)
-    window.setTimeout(() => {
-      saveInternProfile(user.name, next)
-      setDetails(next)
-      setSkillsText(next.skills.join(", "))
-      setSaving(false)
-      setSaved(true)
-    }, 700)
+    setError("")
+    const result = await saveInternProfileDetails(next)
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setDetails(next)
+    setSkillsText(next.skills.join(", "))
+    setSaved(true)
+    router.refresh()
   }
 
   return (
@@ -101,6 +109,7 @@ export function InternProfileManager() {
         <p className="text-sm text-muted-foreground">
           Your internship profile, placement details, and public skills.
         </p>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
       <Card>

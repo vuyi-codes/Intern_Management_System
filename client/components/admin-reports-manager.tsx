@@ -39,9 +39,8 @@ import {
   type ExportFormat,
 } from "@/lib/export-report"
 import {
-  getReportById,
-  reportDefinitions,
   type ReportId,
+  type ReportView,
 } from "@/lib/reports"
 import { cn } from "@/lib/utils"
 
@@ -73,20 +72,26 @@ function StatCard({
   )
 }
 
-export function AdminReportsManager() {
+export function AdminReportsManager({ reports }: { reports: ReportView[] }) {
   const [selectedId, setSelectedId] = React.useState<ReportId>(
-    reportDefinitions[0].id
+    reports[0]?.id ?? "interns-overview"
   )
   const [exporting, setExporting] = React.useState<ExportFormat | null>(null)
   const [lastExport, setLastExport] = React.useState<string | null>(null)
 
-  const selected = getReportById(selectedId) ?? reportDefinitions[0]
-  const rows = React.useMemo(() => selected.buildRows(), [selected])
+  const selected = reports.find((report) => report.id === selectedId) ?? reports[0]
+  const rows = selected?.rows ?? []
 
   const categories = React.useMemo(
-    () => Array.from(new Set(reportDefinitions.map((report) => report.category))),
-    []
+    () => Array.from(new Set(reports.map((report) => report.category))),
+    [reports]
   )
+
+  if (!selected) {
+    return (
+      <p className="text-sm text-muted-foreground">No reports available.</p>
+    )
+  }
 
   function handleExport(format: ExportFormat) {
     setExporting(format)
@@ -119,7 +124,7 @@ export function AdminReportsManager() {
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Available reports"
-          value={reportDefinitions.length}
+          value={reports.length}
           hint="Ready to preview and export"
         />
         <StatCard
@@ -148,7 +153,7 @@ export function AdminReportsManager() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {reportDefinitions.map((report) => {
+            {reports.map((report) => {
               const active = report.id === selectedId
               return (
                 <button

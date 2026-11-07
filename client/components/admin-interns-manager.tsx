@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -58,13 +59,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  deleteIntern,
+  enrolIntern,
+  updateIntern,
+  updateInternStatus,
+} from "@/app/actions/admin-records"
+import type { AdminIntern, NamedOption } from "@/lib/admin-data"
+import {
   formatInternDate,
   getInternInitials,
-  interns as seedInterns,
-  PROGRAMMES,
   STATUS_STYLES,
-  SUPERVISORS,
-  type Intern,
   type InternStatus,
 } from "@/lib/interns"
 import { cn } from "@/lib/utils"
@@ -82,8 +86,8 @@ const STATUS_FILTERS: Array<"All" | InternStatus> = [
 type InternForm = {
   name: string
   email: string
-  programme: (typeof PROGRAMMES)[number]
-  supervisor: (typeof SUPERVISORS)[number]
+  programmeId: string
+  supervisorId: string
   startDate: string
   endDate: string
   status: InternStatus
@@ -92,8 +96,8 @@ type InternForm = {
 const emptyForm: InternForm = {
   name: "",
   email: "",
-  programme: PROGRAMMES[0],
-  supervisor: SUPERVISORS[0],
+  programmeId: "",
+  supervisorId: "",
   startDate: "",
   endDate: "",
   status: "Onboarding",
@@ -121,17 +125,32 @@ function StatCard({
   )
 }
 
-export function AdminInternsManager() {
-  const [internList, setInternList] = React.useState<Intern[]>(seedInterns)
+export function AdminInternsManager({
+  interns,
+  programmes,
+  supervisors,
+}: {
+  interns: AdminIntern[]
+  programmes: NamedOption[]
+  supervisors: NamedOption[]
+}) {
+  const router = useRouter()
+  const [internList, setInternList] = React.useState<AdminIntern[]>(interns)
+  const [notice, setNotice] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [programmeFilter, setProgrammeFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [enrolOpen, setEnrolOpen] = React.useState(false)
-  const [viewIntern, setViewIntern] = React.useState<Intern | null>(null)
-  const [editIntern, setEditIntern] = React.useState<Intern | null>(null)
+  const [viewIntern, setViewIntern] = React.useState<AdminIntern | null>(null)
+  const [editIntern, setEditIntern] = React.useState<AdminIntern | null>(null)
   const [form, setForm] = React.useState<InternForm>(emptyForm)
+
+  React.useEffect(() => {
+    setInternList(interns)
+  }, [interns])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -179,76 +198,91 @@ export function AdminInternsManager() {
     setEnrolOpen(true)
   }
 
-  function openEdit(intern: Intern) {
+  function openEdit(intern: AdminIntern) {
     setEditIntern(intern)
     setForm({
       name: intern.name,
       email: intern.email,
-      programme: intern.programme as InternForm["programme"],
-      supervisor: intern.supervisor as InternForm["supervisor"],
+      programmeId: intern.programmeId ?? "",
+      supervisorId: intern.supervisorId ?? "",
       startDate: intern.startDate,
       endDate: intern.endDate,
       status: intern.status,
     })
   }
 
-  function updateStatus(id: string, status: InternStatus) {
-    setInternList((prev) =>
-      prev.map((intern) => (intern.id === id ? { ...intern, status } : intern))
-    )
+  async function updateStatus(id: string, status: InternStatus) {
+    setNotice("")
+    const result = await updateInternStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function removeIntern(id: string) {
-    setInternList((prev) => prev.filter((intern) => intern.id !== id))
+  async function removeIntern(id: string) {
+    setNotice("")
+    const result = await deleteIntern(id)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setViewIntern((current) => (current?.id === id ? null : current))
+    router.refresh()
   }
 
-  function handleEnrol(event: React.FormEvent) {
+  async function handleEnrol(event: React.FormEvent) {
     event.preventDefault()
     if (!form.name.trim() || !form.email.trim() || !form.startDate) return
-
-    const next: Intern = {
-      id: `int-${Date.now()}`,
-      name: form.name.trim(),
-      email: form.email.trim(),
-      programme: form.programme,
-      supervisor: form.supervisor,
+    setSaving(true)
+    setNotice("")
+    const result = await enrolIntern({
+      name: form.name,
+      email: form.email,
+      programmeId: form.programmeId,
+      supervisorId: form.supervisorId,
       startDate: form.startDate,
       endDate: form.endDate || form.startDate,
-      progress: 0,
       status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
     }
-
-    setInternList((prev) => [next, ...prev])
     setEnrolOpen(false)
     setForm(emptyForm)
-    setStatusFilter("All")
-    setProgrammeFilter("All")
-    setQuery("")
-    setPage(1)
+    setNotice(
+      result.temporaryPassword
+        ? `Intern enrolled. Temporary password: ${result.temporaryPassword}`
+        : "Intern enrolled."
+    )
+    router.refresh()
   }
 
-  function handleEdit(event: React.FormEvent) {
+  async function handleEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editIntern) return
-
-    setInternList((prev) =>
-      prev.map((intern) =>
-        intern.id === editIntern.id
-          ? {
-              ...intern,
-              name: form.name.trim(),
-              email: form.email.trim(),
-              programme: form.programme,
-              supervisor: form.supervisor,
-              startDate: form.startDate,
-              endDate: form.endDate || form.startDate,
-              status: form.status,
-            }
-          : intern
-      )
-    )
+    setSaving(true)
+    setNotice("")
+    const result = await updateIntern({
+      id: editIntern.id,
+      name: form.name,
+      email: form.email,
+      programmeId: form.programmeId,
+      supervisorId: form.supervisorId,
+      startDate: form.startDate,
+      endDate: form.endDate || form.startDate,
+      status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setEditIntern(null)
+    router.refresh()
   }
 
   return (
@@ -259,6 +293,9 @@ export function AdminInternsManager() {
           <p className="text-sm text-muted-foreground">
             Enrol, assign, and track interns across all programmes.
           </p>
+          {notice ? (
+            <p className="text-sm text-destructive">{notice}</p>
+          ) : null}
         </div>
         <Button onClick={openEnrol} className="shrink-0">
           <Plus />
@@ -329,7 +366,8 @@ export function AdminInternsManager() {
                   All programmes
                   {programmeFilter === "All" && <Check className="size-4" />}
                 </DropdownMenuItem>
-                {PROGRAMMES.map((programme) => (
+                {[...new Set(programmes.map((item) => item.name.split(" · ")[0]))].map(
+                  (programme) => (
                   <DropdownMenuItem
                     key={programme}
                     onClick={() => setProgrammeFilter(programme)}
@@ -340,7 +378,8 @@ export function AdminInternsManager() {
                       <Check className="size-4" />
                     )}
                   </DropdownMenuItem>
-                ))}
+                  )
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -574,7 +613,12 @@ export function AdminInternsManager() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEnrol}>
-            <InternFormFields form={form} setForm={setForm} />
+            <InternFormFields
+              form={form}
+              setForm={setForm}
+              programmes={programmes}
+              supervisors={supervisors}
+            />
             <DialogFooter className="p-3">
               <Button
                 type="button"
@@ -606,7 +650,12 @@ export function AdminInternsManager() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit}>
-            <InternFormFields form={form} setForm={setForm} />
+            <InternFormFields
+              form={form}
+              setForm={setForm}
+              programmes={programmes}
+              supervisors={supervisors}
+            />
             <DialogFooter className="p-3">
               <Button
                 type="button"
@@ -615,7 +664,7 @@ export function AdminInternsManager() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Save changes</Button>
+              <Button type="submit" disabled={saving}>Save changes</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -705,10 +754,20 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function InternFormFields({
   form,
   setForm,
+  programmes,
+  supervisors,
 }: {
   form: InternForm
   setForm: React.Dispatch<React.SetStateAction<InternForm>>
+  programmes: NamedOption[]
+  supervisors: NamedOption[]
 }) {
+  const programmeLabel =
+    programmes.find((item) => item.id === form.programmeId)?.name ??
+    "Select programme"
+  const supervisorLabel =
+    supervisors.find((item) => item.id === form.supervisorId)?.name ??
+    "Unassigned"
   const triggerClass = cn(
     buttonVariants({ variant: "outline" }),
     "h-8 w-full justify-between rounded-sm px-2.5 font-normal"
@@ -745,20 +804,20 @@ function InternFormFields({
             <FieldLabel>Programme</FieldLabel>
             <DropdownMenu>
               <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{form.programme}</span>
+                <span className="truncate">{programmeLabel}</span>
                 <ChevronDown className="size-4 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="min-w-52">
-                {PROGRAMMES.map((programme) => (
+                {programmes.map((programme) => (
                   <DropdownMenuItem
-                    key={programme}
+                    key={programme.id}
                     onClick={() =>
-                      setForm((prev) => ({ ...prev, programme }))
+                      setForm((prev) => ({ ...prev, programmeId: programme.id }))
                     }
                     className="justify-between"
                   >
-                    {programme}
-                    {form.programme === programme && (
+                    {programme.name}
+                    {form.programmeId === programme.id && (
                       <Check className="size-4" />
                     )}
                   </DropdownMenuItem>
@@ -770,20 +829,23 @@ function InternFormFields({
             <FieldLabel>Supervisor</FieldLabel>
             <DropdownMenu>
               <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{form.supervisor}</span>
+                <span className="truncate">{supervisorLabel}</span>
                 <ChevronDown className="size-4 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="min-w-52">
-                {SUPERVISORS.map((supervisor) => (
+                {supervisors.map((supervisor) => (
                   <DropdownMenuItem
-                    key={supervisor}
+                    key={supervisor.id || "unassigned"}
                     onClick={() =>
-                      setForm((prev) => ({ ...prev, supervisor }))
+                      setForm((prev) => ({
+                        ...prev,
+                        supervisorId: supervisor.id,
+                      }))
                     }
                     className="justify-between"
                   >
-                    {supervisor}
-                    {form.supervisor === supervisor && (
+                    {supervisor.name}
+                    {form.supervisorId === supervisor.id && (
                       <Check className="size-4" />
                     )}
                   </DropdownMenuItem>

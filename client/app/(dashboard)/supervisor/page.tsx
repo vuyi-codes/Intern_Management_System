@@ -19,60 +19,41 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { loadSupervisorOverview } from "@/lib/supervisor-data"
 
-const stats = [
-  {
-    title: "My Interns",
-    value: "8",
-    description: "Assigned to you",
-    href: "/supervisor/interns",
-    icon: Users,
-  },
-  {
-    title: "Open Tasks",
-    value: "14",
-    description: "Across your interns",
-    href: "/supervisor/tasks",
-    icon: ListTodo,
-  },
-  {
-    title: "Pending Reviews",
-    value: "5",
-    description: "Awaiting your feedback",
-    href: "/supervisor/reviews",
-    icon: ClipboardCheck,
-  },
-  {
-    title: "Daily Logs",
-    value: "3",
-    description: "Submitted today",
-    href: "/supervisor/logs",
-    icon: ScrollText,
-  },
-]
+export default async function SupervisorPage() {
+  const { overview, error } = await loadSupervisorOverview()
+  const stats = [
+    {
+      title: "My Interns",
+      value: String(overview.internCount),
+      description: "Assigned to you",
+      href: "/supervisor/interns",
+      icon: Users,
+    },
+    {
+      title: "Open Tasks",
+      value: String(overview.openTaskCount),
+      description: "Across your interns",
+      href: "/supervisor/tasks",
+      icon: ListTodo,
+    },
+    {
+      title: "Pending Reviews",
+      value: String(overview.pendingReviewCount),
+      description: "Awaiting your feedback",
+      href: "/supervisor/reviews",
+      icon: ClipboardCheck,
+    },
+    {
+      title: "Daily Logs",
+      value: String(overview.logsTodayCount),
+      description: "Submitted today",
+      href: "/supervisor/logs",
+      icon: ScrollText,
+    },
+  ]
 
-const recentActivity = [
-  {
-    title: "Thabo Molefe submitted a daily log",
-    detail: "Frontend sprint — component library work",
-    time: "2h ago",
-    href: "/supervisor/logs",
-  },
-  {
-    title: "Task ready for review",
-    detail: "API auth middleware — Lerato Dlamini",
-    time: "4h ago",
-    href: "/supervisor/reviews",
-  },
-  {
-    title: "New task assigned",
-    detail: "Write integration tests — Sipho Nkosi",
-    time: "Yesterday",
-    href: "/supervisor/tasks",
-  },
-]
-
-export default function SupervisorPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -80,6 +61,7 @@ export default function SupervisorPage() {
         <p className="text-sm text-muted-foreground">
           Track your interns, tasks, and reviews in one place.
         </p>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -108,10 +90,10 @@ export default function SupervisorPage() {
       <div className="grid gap-4 xl:grid-cols-[7fr_3fr]">
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
           <div className="min-w-0">
-            <SupervisorOverviewBarChart />
+            <SupervisorOverviewBarChart data={overview.bar} />
           </div>
           <div className="min-w-0">
-            <SupervisorOverviewPieChart />
+            <SupervisorOverviewPieChart data={overview.pie} />
           </div>
         </div>
 
@@ -123,30 +105,36 @@ export default function SupervisorPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-0">
-            {recentActivity.map((item, index) => (
-              <div key={item.title}>
-                {index > 0 && <Separator />}
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <div className="grid gap-0.5">
-                    <Link
-                      href={item.href}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {item.title}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">{item.detail}</p>
+            {overview.activity.length === 0 ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                No recent activity yet.
+              </p>
+            ) : (
+              overview.activity.map((item, index) => (
+                <div key={`${item.title}-${item.time}-${index}`}>
+                  {index > 0 && <Separator />}
+                  <div className="flex items-start justify-between gap-4 py-3">
+                    <div className="grid gap-0.5">
+                      <Link
+                        href={item.href}
+                        className="text-sm font-medium hover:underline"
+                      >
+                        {item.title}
+                      </Link>
+                      <p className="text-sm text-muted-foreground">{item.detail}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.time}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.time}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <SupervisorTasksTable />
+      <SupervisorTasksTable tasks={overview.recentTasks} />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -58,14 +59,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  addSupervisor,
+  deleteSupervisor,
+  updateSupervisor,
+  updateSupervisorStatus,
+} from "@/app/actions/admin-records"
+import type { AdminSupervisor, NamedOption } from "@/lib/admin-data"
+import {
   DEPARTMENTS,
   formatSupervisorDate,
-  getAssignedInternCount,
   getSupervisorInitials,
-  PROGRAMMES,
   SUPERVISOR_STATUS_STYLES,
-  supervisors as seedSupervisors,
-  type Supervisor,
   type SupervisorStatus,
 } from "@/lib/supervisors"
 import { cn } from "@/lib/utils"
@@ -85,7 +89,7 @@ const emptyForm = {
   phone: "",
   title: "",
   department: DEPARTMENTS[0] as string,
-  programmes: [PROGRAMMES[0]] as string[],
+  programmes: [] as string[],
   capacity: "5",
   startDate: "",
   status: "Active" as SupervisorStatus,
@@ -115,25 +119,42 @@ function StatCard({
   )
 }
 
-function assignedCountFor(supervisor: Supervisor) {
-  return getAssignedInternCount(supervisor.name)
+function assignedCountFor(
+  supervisor: { id: string },
+  assignedCounts: Record<string, number>
+) {
+  return assignedCounts[supervisor.id] ?? 0
 }
 
-export function AdminSupervisorsManager() {
+export function AdminSupervisorsManager({
+  supervisors,
+  programmes,
+  assignedCounts,
+}: {
+  supervisors: AdminSupervisor[]
+  programmes: NamedOption[]
+  assignedCounts: Record<string, number>
+}) {
+  const router = useRouter()
   const [supervisorList, setSupervisorList] =
-    React.useState<Supervisor[]>(seedSupervisors)
+    React.useState<AdminSupervisor[]>(supervisors)
+  const [notice, setNotice] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [departmentFilter, setDepartmentFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [addOpen, setAddOpen] = React.useState(false)
-  const [viewSupervisor, setViewSupervisor] = React.useState<Supervisor | null>(
-    null
-  )
+  const [viewSupervisor, setViewSupervisor] =
+    React.useState<AdminSupervisor | null>(null)
   const [editSupervisor, setEditSupervisor] =
-    React.useState<Supervisor | null>(null)
+    React.useState<AdminSupervisor | null>(null)
   const [form, setForm] = React.useState<SupervisorForm>(emptyForm)
+
+  React.useEffect(() => {
+    setSupervisorList(supervisors)
+  }, [supervisors])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -169,7 +190,7 @@ export function AdminSupervisorsManager() {
     const active = supervisorList.filter((s) => s.status === "Active").length
     const onLeave = supervisorList.filter((s) => s.status === "On leave").length
     const nearCapacity = supervisorList.filter((supervisor) => {
-      const assigned = assignedCountFor(supervisor)
+      const assigned = assignedCountFor(supervisor, assignedCounts)
       return assigned >= supervisor.capacity
     }).length
     return {
@@ -178,7 +199,7 @@ export function AdminSupervisorsManager() {
       onLeave,
       nearCapacity,
     }
-  }, [supervisorList])
+  }, [supervisorList, assignedCounts])
 
   function goToPage(nextPage: number) {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
@@ -189,7 +210,7 @@ export function AdminSupervisorsManager() {
     setAddOpen(true)
   }
 
-  function openEdit(supervisor: Supervisor) {
+  function openEdit(supervisor: AdminSupervisor) {
     setEditSupervisor(supervisor)
     setForm({
       name: supervisor.name,
@@ -197,90 +218,102 @@ export function AdminSupervisorsManager() {
       phone: supervisor.phone,
       title: supervisor.title,
       department: supervisor.department,
-      programmes: supervisor.programmes,
+      programmes: supervisor.programmeIds,
       capacity: String(supervisor.capacity),
       startDate: supervisor.startDate,
       status: supervisor.status,
     })
   }
 
-  function updateStatus(id: string, status: SupervisorStatus) {
-    setSupervisorList((prev) =>
-      prev.map((supervisor) =>
-        supervisor.id === id ? { ...supervisor, status } : supervisor
-      )
-    )
+  async function updateStatus(id: string, status: SupervisorStatus) {
+    setNotice("")
+    const result = await updateSupervisorStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function removeSupervisor(id: string) {
-    setSupervisorList((prev) =>
-      prev.filter((supervisor) => supervisor.id !== id)
-    )
+  async function removeSupervisor(id: string) {
+    setNotice("")
+    const result = await deleteSupervisor(id)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setViewSupervisor((current) => (current?.id === id ? null : current))
+    router.refresh()
   }
 
   function toggleProgramme(programme: string) {
     setForm((prev) => {
       const exists = prev.programmes.includes(programme)
-      const programmes = exists
+      const next = exists
         ? prev.programmes.filter((item) => item !== programme)
         : [...prev.programmes, programme]
       return {
         ...prev,
-        programmes: programmes.length > 0 ? programmes : [programme],
+        programmes: next.length > 0 ? next : [programme],
       }
     })
   }
 
-  function handleAdd(event: React.FormEvent) {
+  async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
     if (!form.name.trim() || !form.email.trim() || !form.startDate) return
-
-    const next: Supervisor = {
-      id: `sup-${Date.now()}`,
-      name: form.name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      title: form.title.trim() || "Internship Supervisor",
+    setSaving(true)
+    setNotice("")
+    const result = await addSupervisor({
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      title: form.title,
       department: form.department,
-      programmes: form.programmes,
+      programmeIds: form.programmes,
       capacity: Number(form.capacity) || 1,
       startDate: form.startDate,
       status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
     }
-
-    setSupervisorList((prev) => [next, ...prev])
     setAddOpen(false)
     setForm(emptyForm)
-    setStatusFilter("All")
-    setDepartmentFilter("All")
-    setQuery("")
-    setPage(1)
+    setNotice(
+      result.temporaryPassword
+        ? `Supervisor added. Temporary password: ${result.temporaryPassword}`
+        : "Supervisor added."
+    )
+    router.refresh()
   }
 
-  function handleEdit(event: React.FormEvent) {
+  async function handleEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editSupervisor) return
-
-    setSupervisorList((prev) =>
-      prev.map((supervisor) =>
-        supervisor.id === editSupervisor.id
-          ? {
-              ...supervisor,
-              name: form.name.trim(),
-              email: form.email.trim(),
-              phone: form.phone.trim(),
-              title: form.title.trim() || supervisor.title,
-              department: form.department,
-              programmes: form.programmes,
-              capacity: Number(form.capacity) || supervisor.capacity,
-              startDate: form.startDate,
-              status: form.status,
-            }
-          : supervisor
-      )
-    )
+    setSaving(true)
+    setNotice("")
+    const result = await updateSupervisor({
+      id: editSupervisor.id,
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      title: form.title,
+      department: form.department,
+      programmeIds: form.programmes,
+      capacity: Number(form.capacity) || 1,
+      startDate: form.startDate,
+      status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setEditSupervisor(null)
+    router.refresh()
   }
 
   return (
@@ -291,6 +324,7 @@ export function AdminSupervisorsManager() {
           <p className="text-sm text-muted-foreground">
             Manage mentors, capacity, and programme coverage.
           </p>
+          {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
         </div>
         <Button onClick={openAdd} className="shrink-0">
           <Plus />
@@ -423,7 +457,7 @@ export function AdminSupervisorsManager() {
                 </TableRow>
               ) : (
                 pageRows.map((supervisor) => {
-                  const assigned = assignedCountFor(supervisor)
+                  const assigned = assignedCountFor(supervisor, assignedCounts)
                   const load = Math.min(
                     100,
                     Math.round((assigned / supervisor.capacity) * 100)
@@ -636,6 +670,7 @@ export function AdminSupervisorsManager() {
               form={form}
               setForm={setForm}
               toggleProgramme={toggleProgramme}
+              programmes={programmes}
             />
             <DialogFooter className="p-3">
               <Button
@@ -672,6 +707,7 @@ export function AdminSupervisorsManager() {
               form={form}
               setForm={setForm}
               toggleProgramme={toggleProgramme}
+              programmes={programmes}
             />
             <DialogFooter className="p-3">
               <Button
@@ -728,7 +764,7 @@ export function AdminSupervisorsManager() {
                 />
                 <DetailRow
                   label="Interns"
-                  value={`${assignedCountFor(viewSupervisor)}/${viewSupervisor.capacity}`}
+                  value={`${assignedCountFor(viewSupervisor, assignedCounts)}/${viewSupervisor.capacity}`}
                 />
                 <DetailRow label="Status" value={viewSupervisor.status} />
                 <div className="grid gap-1">
@@ -788,10 +824,12 @@ function SupervisorFormFields({
   form,
   setForm,
   toggleProgramme,
+  programmes,
 }: {
   form: SupervisorForm
   setForm: React.Dispatch<React.SetStateAction<SupervisorForm>>
   toggleProgramme: (programme: string) => void
+  programmes: NamedOption[]
 }) {
   const triggerClass = cn(
     buttonVariants({ variant: "outline" }),
@@ -929,13 +967,13 @@ function SupervisorFormFields({
         <Field>
           <FieldLabel>Programmes</FieldLabel>
           <div className="flex flex-wrap gap-1.5">
-            {PROGRAMMES.map((programme) => {
-              const selected = form.programmes.includes(programme)
+            {programmes.map((programme) => {
+              const selected = form.programmes.includes(programme.id)
               return (
                 <button
-                  key={programme}
+                  key={programme.id}
                   type="button"
-                  onClick={() => toggleProgramme(programme)}
+                  onClick={() => toggleProgramme(programme.id)}
                   className={cn(
                     buttonVariants({
                       variant: selected ? "secondary" : "outline",
@@ -945,7 +983,7 @@ function SupervisorFormFields({
                   )}
                 >
                   {selected && <Check className="size-3.5" />}
-                  {programme}
+                  {programme.name}
                 </button>
               )
             })}

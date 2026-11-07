@@ -19,60 +19,41 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { loadAdminOverview } from "@/lib/admin-data"
 
-const stats = [
-  {
-    title: "Interns",
-    value: "24",
-    description: "Active in programmes",
-    href: "/admin/interns",
-    icon: GraduationCap,
-  },
-  {
-    title: "Supervisors",
-    value: "6",
-    description: "Managing cohorts",
-    href: "/admin/supervisors",
-    icon: UserCog,
-  },
-  {
-    title: "Programmes",
-    value: "3",
-    description: "Currently running",
-    href: "/admin/programmes",
-    icon: CalendarRange,
-  },
-  {
-    title: "Reports",
-    value: "12",
-    description: "Generated this month",
-    href: "/admin/reports",
-    icon: BarChart3,
-  },
-]
+export default async function AdminPage() {
+  const { overview, error } = await loadAdminOverview()
+  const stats = [
+    {
+      title: "Interns",
+      value: String(overview.activeInternCount),
+      description: `${overview.internCount} enrolled in total`,
+      href: "/admin/interns",
+      icon: GraduationCap,
+    },
+    {
+      title: "Supervisors",
+      value: String(overview.supervisorCount),
+      description: "Managing cohorts",
+      href: "/admin/supervisors",
+      icon: UserCog,
+    },
+    {
+      title: "Programmes",
+      value: String(overview.activeProgrammeCount),
+      description: "Currently running",
+      href: "/admin/programmes",
+      icon: CalendarRange,
+    },
+    {
+      title: "Reports",
+      value: String(overview.reportCount),
+      description: "Available to export",
+      href: "/admin/reports",
+      icon: BarChart3,
+    },
+  ]
 
-const recentActivity = [
-  {
-    title: "New intern enrolled",
-    detail: "Nomsa Khumalo — Software Engineering",
-    time: "1h ago",
-    href: "/admin/interns",
-  },
-  {
-    title: "Supervisor assigned",
-    detail: "Jordan Peters → Frontend cohort",
-    time: "3h ago",
-    href: "/admin/supervisors",
-  },
-  {
-    title: "Programme updated",
-    detail: "Winter 2026 end date extended",
-    time: "Yesterday",
-    href: "/admin/programmes",
-  },
-]
-
-export default function AdminPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -80,6 +61,7 @@ export default function AdminPage() {
         <p className="text-sm text-muted-foreground">
           Manage interns, supervisors, programmes, and reports.
         </p>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -108,10 +90,10 @@ export default function AdminPage() {
       <div className="grid gap-4 xl:grid-cols-[7fr_3fr]">
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
           <div className="min-w-0">
-            <AdminOverviewBarChart />
+            <AdminOverviewBarChart data={overview.bar} />
           </div>
           <div className="min-w-0">
-            <AdminOverviewPieChart />
+            <AdminOverviewPieChart data={overview.pie} />
           </div>
         </div>
 
@@ -123,31 +105,36 @@ export default function AdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-0">
-            {recentActivity.map((item, index) => (
-              <div key={item.title}>
-                {index > 0 && <Separator />}
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <div className="grid gap-0.5">
-                    <Link
-                      href={item.href}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {item.title}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">{item.detail}</p>
+            {overview.activity.length === 0 ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                No recent enrolments yet.
+              </p>
+            ) : (
+              overview.activity.map((item, index) => (
+                <div key={`${item.title}-${item.time}-${index}`}>
+                  {index > 0 && <Separator />}
+                  <div className="flex items-start justify-between gap-4 py-3">
+                    <div className="grid gap-0.5">
+                      <Link
+                        href={item.href}
+                        className="text-sm font-medium hover:underline"
+                      >
+                        {item.title}
+                      </Link>
+                      <p className="text-sm text-muted-foreground">{item.detail}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.time}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.time}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <AdminEnrolmentsTable />
+      <AdminEnrolmentsTable enrolments={overview.enrolments} />
     </div>
   )
 }
-

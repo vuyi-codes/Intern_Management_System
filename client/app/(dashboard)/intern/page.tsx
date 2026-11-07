@@ -16,60 +16,44 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { loadInternOverview } from "@/lib/intern-data"
 
-const stats = [
-  {
-    title: "My Tasks",
-    value: "7",
-    description: "2 due this week",
-    href: "/intern/tasks",
-    icon: ListTodo,
-  },
-  {
-    title: "Daily Log",
-    value: "18",
-    description: "Entries this month",
-    href: "/intern/daily-log",
-    icon: NotebookPen,
-  },
-  {
-    title: "Progress",
-    value: "64%",
-    description: "Programme completion",
-    href: "/intern/progress",
-    icon: TrendingUp,
-  },
-  {
-    title: "Profile",
-    value: "1",
-    description: "Profile to keep updated",
-    href: "/intern/profile",
-    icon: User,
-  },
-]
+export default async function InternPage() {
+  const { overview, error } = await loadInternOverview()
+  const stats = [
+    {
+      title: "My Tasks",
+      value: String(overview.taskCount),
+      description:
+        overview.tasksDueThisWeek === 1
+          ? "1 due this week"
+          : `${overview.tasksDueThisWeek} due this week`,
+      href: "/intern/tasks",
+      icon: ListTodo,
+    },
+    {
+      title: "Daily Log",
+      value: String(overview.logsThisMonth),
+      description: "Entries this month",
+      href: "/intern/daily-log",
+      icon: NotebookPen,
+    },
+    {
+      title: "Progress",
+      value: `${overview.progress}%`,
+      description: "Programme completion",
+      href: "/intern/progress",
+      icon: TrendingUp,
+    },
+    {
+      title: "Profile",
+      value: "1",
+      description: "Profile to keep updated",
+      href: "/intern/profile",
+      icon: User,
+    },
+  ]
 
-const recentActivity = [
-  {
-    title: "Task marked in progress",
-    detail: "Build intern overview page",
-    time: "1h ago",
-    href: "/intern/tasks",
-  },
-  {
-    title: "Daily log submitted",
-    detail: "Worked on dashboard layout and nav stubs",
-    time: "Yesterday",
-    href: "/intern/daily-log",
-  },
-  {
-    title: "Progress updated",
-    detail: "Frontend module — 64% complete",
-    time: "2 days ago",
-    href: "/intern/progress",
-  },
-]
-
-export default function InternPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -77,6 +61,7 @@ export default function InternPage() {
         <p className="text-sm text-muted-foreground">
           Track your tasks, daily logs, and programme progress.
         </p>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -104,7 +89,7 @@ export default function InternPage() {
 
       <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
         <div className="min-w-0">
-          <InternOverviewChart />
+          <InternOverviewChart data={overview.pie} />
         </div>
 
         <Card className="min-w-0 h-full">
@@ -115,30 +100,36 @@ export default function InternPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-0">
-            {recentActivity.map((item, index) => (
-              <div key={item.title}>
-                {index > 0 && <Separator />}
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <div className="grid gap-0.5">
-                    <Link
-                      href={item.href}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {item.title}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">{item.detail}</p>
+            {overview.activity.length === 0 ? (
+              <p className="py-3 text-sm text-muted-foreground">
+                No recent activity yet.
+              </p>
+            ) : (
+              overview.activity.map((item, index) => (
+                <div key={`${item.title}-${item.time}-${index}`}>
+                  {index > 0 && <Separator />}
+                  <div className="flex items-start justify-between gap-4 py-3">
+                    <div className="grid gap-0.5">
+                      <Link
+                        href={item.href}
+                        className="text-sm font-medium hover:underline"
+                      >
+                        {item.title}
+                      </Link>
+                      <p className="text-sm text-muted-foreground">{item.detail}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.time}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.time}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <InternTasksTable />
+      <InternTasksTable tasks={overview.recentTasks} />
     </div>
   )
 }

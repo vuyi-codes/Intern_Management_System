@@ -1,7 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Check, ChevronDown, Loader2, RotateCcw } from "lucide-react"
+
+import { saveUserSettings } from "@/app/actions/account"
+import { saveAdminSettings } from "@/app/actions/admin-records"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -77,20 +81,25 @@ function ToggleRow({
 export function DashboardSettings({
   role,
   embedded = false,
+  remote,
 }: {
   role: Role
   embedded?: boolean
+  remote?: RoleSettings
 }) {
-  const [settings, setSettings] = React.useState<RoleSettings>(() =>
-    getDefaultSettings(role)
+  const router = useRouter()
+  const [settings, setSettings] = React.useState<RoleSettings>(
+    () => remote ?? getDefaultSettings(role)
   )
   const [saving, setSaving] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
+  const [error, setError] = React.useState("")
 
   React.useEffect(() => {
-    setSettings(getStoredSettings(role))
+    setSettings(remote ?? getStoredSettings(role))
     setSaved(false)
-  }, [role])
+    setError("")
+  }, [role, remote])
 
   function updateNotifications<K extends keyof RoleSettings["notifications"]>(
     key: K,
@@ -138,9 +147,24 @@ export function DashboardSettings({
     }))
   }
 
-  function handleSave(event: React.FormEvent) {
+  async function handleSave(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
+    setError("")
+    if (remote) {
+      const result =
+        role === "admin"
+          ? await saveAdminSettings(settings)
+          : await saveUserSettings(settings)
+      setSaving(false)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setSaved(true)
+      router.refresh()
+      return
+    }
     setStoredSettings(role, settings)
     window.setTimeout(() => {
       setSaving(false)
@@ -148,9 +172,25 @@ export function DashboardSettings({
     }, 500)
   }
 
-  function handleReset() {
+  async function handleReset() {
     const defaults = getDefaultSettings(role)
     setSettings(defaults)
+    setError("")
+    if (remote) {
+      setSaving(true)
+      const result =
+        role === "admin"
+          ? await saveAdminSettings(defaults)
+          : await saveUserSettings(defaults)
+      setSaving(false)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setSaved(true)
+      router.refresh()
+      return
+    }
     setStoredSettings(role, defaults)
     setSaved(true)
   }
@@ -181,6 +221,7 @@ export function DashboardSettings({
               Manage notifications, preferences, and privacy for your{" "}
               {roleLabels[role].toLowerCase()} workspace.
             </p>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
         )}
         <div

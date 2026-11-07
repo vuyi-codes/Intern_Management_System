@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -8,6 +9,15 @@ import {
   NotebookPen,
   Search,
 } from "lucide-react"
+
+import {
+  updateDailyLogReview,
+  updateDailyLogStatus,
+} from "@/app/actions/supervisor-records"
+import type {
+  NamedIntern,
+  SupervisorLogRecord,
+} from "@/lib/supervisor-data"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -59,17 +69,11 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   DAILY_LOG_STATUS_STYLES,
   formatLogDate,
-  getDailyLogsForSupervisor,
-  type DailyLog,
   type DailyLogStatus,
 } from "@/lib/daily-logs"
-import { getInternsForSupervisor } from "@/lib/interns"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
-/** Demo “today” aligned with seed log dates. */
-const SEED_TODAY = "2026-04-03"
 
 const STATUS_FILTERS: Array<"All" | DailyLogStatus> = [
   "All",
@@ -100,29 +104,34 @@ function StatCard({
   )
 }
 
-export function SupervisorLogsManager() {
-  const supervisor = getUserForRole("supervisor")
-  const internNames = React.useMemo(
-    () =>
-      getInternsForSupervisor(supervisor.name).map((intern) => intern.name),
-    [supervisor.name]
-  )
-
-  const [logList, setLogList] = React.useState<DailyLog[]>(() =>
-    getDailyLogsForSupervisor(supervisor.name)
-  )
+export function SupervisorLogsManager({
+  logs,
+  interns,
+  supervisorName,
+  today,
+}: {
+  logs: SupervisorLogRecord[]
+  interns: NamedIntern[]
+  supervisorName: string
+  today: string
+}) {
+  const router = useRouter()
+  const [logList, setLogList] = React.useState<SupervisorLogRecord[]>(logs)
+  const [notice, setNotice] = React.useState("")
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [internFilter, setInternFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
-  const [activeLog, setActiveLog] = React.useState<DailyLog | null>(null)
+  const [activeLog, setActiveLog] = React.useState<SupervisorLogRecord | null>(
+    null
+  )
   const [mentorNote, setMentorNote] = React.useState("")
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
-    setLogList(getDailyLogsForSupervisor(supervisor.name))
-  }, [supervisor.name])
+    setLogList(logs)
+  }, [logs])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -150,51 +159,54 @@ export function SupervisorLogsManager() {
   }, [query, statusFilter, internFilter])
 
   const counts = React.useMemo(() => {
-    const todayLogs = logList.filter((log) => log.date === SEED_TODAY)
+    const todayLogs = logList.filter((log) => log.date === today)
     return {
       today: todayLogs.length,
       submitted: logList.filter((log) => log.status === "Submitted").length,
       flagged: logList.filter((log) => log.status === "Flagged").length,
       reviewed: logList.filter((log) => log.status === "Reviewed").length,
     }
-  }, [logList])
+  }, [logList, today])
 
   function goToPage(nextPage: number) {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
   }
 
-  function openLog(log: DailyLog) {
+  function openLog(log: SupervisorLogRecord) {
     setActiveLog(log)
     setMentorNote(log.mentorNote)
   }
 
-  function updateStatus(id: string, status: DailyLogStatus) {
-    setLogList((prev) =>
-      prev.map((log) => (log.id === id ? { ...log, status } : log))
-    )
+  async function updateStatus(id: string, status: DailyLogStatus) {
+    setNotice("")
+    const result = await updateDailyLogStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function handleSaveNote(event: React.FormEvent) {
+  async function handleSaveNote(event: React.FormEvent) {
     event.preventDefault()
     if (!activeLog) return
 
     setSaving(true)
-    window.setTimeout(() => {
-      setLogList((prev) =>
-        prev.map((log) =>
-          log.id === activeLog.id
-            ? {
-                ...log,
-                mentorNote: mentorNote.trim(),
-                status:
-                  log.status === "Submitted" ? "Reviewed" : log.status,
-              }
-            : log
-        )
-      )
-      setSaving(false)
-      setActiveLog(null)
-    }, 400)
+    setNotice("")
+    const nextStatus =
+      activeLog.status === "Submitted" ? "Reviewed" : activeLog.status
+    const result = await updateDailyLogReview({
+      id: activeLog.id,
+      mentorNote,
+      status: nextStatus,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    setActiveLog(null)
+    router.refresh()
   }
 
   const triggerClass = cn(
@@ -207,15 +219,16 @@ export function SupervisorLogsManager() {
       <div className="flex min-w-0 flex-col gap-1">
         <h1 className="text-2xl font-semibold">Daily Logs</h1>
         <p className="text-sm text-muted-foreground">
-          Review daily submissions from interns assigned to {supervisor.name}.
+          Review daily submissions from interns assigned to {supervisorName}.
         </p>
+        {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
       </div>
 
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Submitted today"
           value={counts.today}
-          hint={formatLogDate(SEED_TODAY)}
+          hint={formatLogDate(today)}
         />
         <StatCard
           label="Awaiting review"
@@ -267,14 +280,16 @@ export function SupervisorLogsManager() {
                   All interns
                   {internFilter === "All" && <Check className="size-4" />}
                 </DropdownMenuItem>
-                {internNames.map((name) => (
+                {interns.map((intern) => (
                   <DropdownMenuItem
-                    key={name}
-                    onClick={() => setInternFilter(name)}
+                    key={intern.id}
+                    onClick={() => setInternFilter(intern.name)}
                     className="justify-between"
                   >
-                    {name}
-                    {internFilter === name && <Check className="size-4" />}
+                    {intern.name}
+                    {internFilter === intern.name && (
+                      <Check className="size-4" />
+                    )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

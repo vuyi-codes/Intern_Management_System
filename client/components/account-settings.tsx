@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { ImagePlus, Loader2 } from "lucide-react"
+
+import {
+  updateAccountPassword,
+  updateAccountProfile,
+} from "@/app/actions/account"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -45,10 +51,12 @@ function getInitials(name: string) {
 type AccountSettingsProps = {
   role: Role
   className?: string
+  user?: AppUser
 }
 
-export function AccountSettings({ role, className }: AccountSettingsProps) {
-  const initialUser = getUserForRole(role)
+export function AccountSettings({ role, className, user }: AccountSettingsProps) {
+  const router = useRouter()
+  const initialUser = user ?? getUserForRole(role)
   const [profile, setProfile] = React.useState<AppUser>(initialUser)
   const [password, setPassword] = React.useState({
     current: "",
@@ -59,13 +67,15 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
   const [savingPassword, setSavingPassword] = React.useState(false)
   const [profileSaved, setProfileSaved] = React.useState(false)
   const [passwordSaved, setPasswordSaved] = React.useState(false)
+  const [profileError, setProfileError] = React.useState("")
+  const [passwordError, setPasswordError] = React.useState("")
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
-    const user = getUserForRole(role)
     const stored = getStoredAvatar(role)
-    setProfile({ ...user, avatar: stored ?? user.avatar })
-  }, [role])
+    const source = user ?? getUserForRole(role)
+    setProfile({ ...source, avatar: stored ?? source.avatar })
+  }, [role, user])
 
   function updateProfile<K extends keyof AppUser>(key: K, value: AppUser[K]) {
     setProfile((prev) => ({ ...prev, [key]: value }))
@@ -91,10 +101,29 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
     event.target.value = ""
   }
 
-  function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSavingProfile(true)
     setProfileSaved(false)
+    setProfileError("")
+
+    if (user) {
+      const result = await updateAccountProfile({
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        title: profile.title,
+        department: profile.department,
+      })
+      setSavingProfile(false)
+      if (result.error) {
+        setProfileError(result.error)
+        return
+      }
+      setProfileSaved(true)
+      router.refresh()
+      return
+    }
 
     window.setTimeout(() => {
       setSavingProfile(false)
@@ -102,7 +131,7 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
     }, 800)
   }
 
-  function handleSavePassword(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSavePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!password.current || !password.next || password.next !== password.confirm) {
       return
@@ -110,6 +139,19 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
 
     setSavingPassword(true)
     setPasswordSaved(false)
+    setPasswordError("")
+
+    if (user) {
+      const result = await updateAccountPassword(password.next)
+      setSavingPassword(false)
+      if (result.error) {
+        setPasswordError(result.error)
+        return
+      }
+      setPasswordSaved(true)
+      setPassword({ current: "", next: "", confirm: "" })
+      return
+    }
 
     window.setTimeout(() => {
       setSavingPassword(false)
@@ -276,8 +318,12 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
             </FieldGroup>
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {profileSaved ? "Profile saved." : "Update your personal details."}
+            <p className={profileError ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+              {profileError
+                ? profileError
+                : profileSaved
+                  ? "Profile saved."
+                  : "Update your personal details."}
             </p>
             <Button type="submit" disabled={savingProfile}>
               {savingProfile && <Loader2 className="size-4 animate-spin" />}
@@ -353,8 +399,10 @@ export function AccountSettings({ role, className }: AccountSettingsProps) {
             </FieldGroup>
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {passwordSaved
+            <p className={passwordError ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+              {passwordError
+                ? passwordError
+                : passwordSaved
                 ? "Password updated."
                 : password.next &&
                     password.confirm &&

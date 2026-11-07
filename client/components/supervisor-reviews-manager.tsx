@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -8,6 +9,15 @@ import {
   MoreHorizontal,
   Search,
 } from "lucide-react"
+
+import {
+  submitReviewFeedback,
+  updateReviewStatus,
+} from "@/app/actions/supervisor-records"
+import type {
+  NamedIntern,
+  SupervisorReviewRecord,
+} from "@/lib/supervisor-data"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -56,19 +66,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { getInternsForSupervisor } from "@/lib/interns"
 import {
   formatReviewDate,
-  getReviewsForSupervisor,
   REVIEW_OUTCOME_STYLES,
   REVIEW_STATUS_STYLES,
   REVIEW_TYPE_STYLES,
   type ReviewOutcome,
   type ReviewStatus,
   type ReviewType,
-  type SupervisorReview,
 } from "@/lib/reviews"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -110,20 +116,19 @@ function StatCard({
   )
 }
 
-export function SupervisorReviewsManager() {
-  const supervisor = getUserForRole("supervisor")
-  const myInterns = React.useMemo(
-    () => getInternsForSupervisor(supervisor.name),
-    [supervisor.name]
-  )
-  const internNames = React.useMemo(
-    () => myInterns.map((intern) => intern.name),
-    [myInterns]
-  )
-
-  const [reviewList, setReviewList] = React.useState<SupervisorReview[]>(() =>
-    getReviewsForSupervisor(supervisor.name)
-  )
+export function SupervisorReviewsManager({
+  reviews,
+  interns,
+  supervisorName,
+}: {
+  reviews: SupervisorReviewRecord[]
+  interns: NamedIntern[]
+  supervisorName: string
+}) {
+  const router = useRouter()
+  const [reviewList, setReviewList] =
+    React.useState<SupervisorReviewRecord[]>(reviews)
+  const [notice, setNotice] = React.useState("")
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
@@ -132,14 +137,14 @@ export function SupervisorReviewsManager() {
   const [internFilter, setInternFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [activeReview, setActiveReview] =
-    React.useState<SupervisorReview | null>(null)
+    React.useState<SupervisorReviewRecord | null>(null)
   const [feedback, setFeedback] = React.useState("")
   const [outcome, setOutcome] = React.useState<ReviewOutcome>("Approved")
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
-    setReviewList(getReviewsForSupervisor(supervisor.name))
-  }, [supervisor.name])
+    setReviewList(reviews)
+  }, [reviews])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -184,7 +189,7 @@ export function SupervisorReviewsManager() {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
   }
 
-  function openReview(review: SupervisorReview) {
+  function openReview(review: SupervisorReviewRecord) {
     setActiveReview(review)
     setFeedback(review.feedback)
     setOutcome(
@@ -192,44 +197,36 @@ export function SupervisorReviewsManager() {
     )
   }
 
-  function updateStatus(id: string, status: ReviewStatus) {
-    setReviewList((prev) =>
-      prev.map((review) =>
-        review.id === id
-          ? {
-              ...review,
-              status,
-              outcome:
-                status === "Completed" && review.outcome === "Pending"
-                  ? "Approved"
-                  : review.outcome,
-            }
-          : review
-      )
-    )
+  async function updateStatus(id: string, status: ReviewStatus) {
+    setNotice("")
+    const outcomeValue =
+      status === "Completed" ? ("Approved" as ReviewOutcome) : undefined
+    const result = await updateReviewStatus(id, status, outcomeValue)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function handleSubmitFeedback(event: React.FormEvent) {
+  async function handleSubmitFeedback(event: React.FormEvent) {
     event.preventDefault()
     if (!activeReview || !feedback.trim()) return
 
     setSaving(true)
-    window.setTimeout(() => {
-      setReviewList((prev) =>
-        prev.map((review) =>
-          review.id === activeReview.id
-            ? {
-                ...review,
-                feedback: feedback.trim(),
-                outcome,
-                status: "Completed",
-              }
-            : review
-        )
-      )
-      setSaving(false)
-      setActiveReview(null)
-    }, 400)
+    setNotice("")
+    const result = await submitReviewFeedback({
+      id: activeReview.id,
+      feedback,
+      outcome,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    setActiveReview(null)
+    router.refresh()
   }
 
   const triggerClass = cn(
@@ -243,8 +240,9 @@ export function SupervisorReviewsManager() {
         <h1 className="text-2xl font-semibold">Reviews</h1>
         <p className="text-sm text-muted-foreground">
           Give feedback on tasks, logs, and checkpoints for{" "}
-          {supervisor.name}&apos;s interns.
+          {supervisorName}&apos;s interns.
         </p>
+        {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
       </div>
 
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -303,14 +301,16 @@ export function SupervisorReviewsManager() {
                   All interns
                   {internFilter === "All" && <Check className="size-4" />}
                 </DropdownMenuItem>
-                {internNames.map((name) => (
+                {interns.map((intern) => (
                   <DropdownMenuItem
-                    key={name}
-                    onClick={() => setInternFilter(name)}
+                    key={intern.id}
+                    onClick={() => setInternFilter(intern.name)}
                     className="justify-between"
                   >
-                    {name}
-                    {internFilter === name && <Check className="size-4" />}
+                    {intern.name}
+                    {internFilter === intern.name && (
+                      <Check className="size-4" />
+                    )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

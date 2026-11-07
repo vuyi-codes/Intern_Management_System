@@ -1,8 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Check, ChevronDown, MoreHorizontal, Search } from "lucide-react"
 
+import { updateOwnTaskStatus } from "@/app/actions/intern-records"
+import type { InternTaskRecord } from "@/lib/intern-data"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -45,14 +48,11 @@ import {
 } from "@/components/ui/table"
 import {
   formatTaskDate,
-  supervisorTasks,
   TASK_PRIORITY_STYLES,
   TASK_STATUS_STYLES,
-  type SupervisorTask,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/tasks"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -71,10 +71,6 @@ const PRIORITY_FILTERS: Array<"All" | TaskPriority> = [
   "Medium",
   "Low",
 ]
-
-function tasksForIntern(internName: string) {
-  return supervisorTasks.filter((task) => task.intern === internName)
-}
 
 function StatCard({
   label,
@@ -98,22 +94,25 @@ function StatCard({
   )
 }
 
-export function InternTasksManager() {
-  const intern = getUserForRole("intern")
-  const [taskList, setTaskList] = React.useState<SupervisorTask[]>(() =>
-    tasksForIntern(intern.name)
-  )
+export function InternTasksManager({
+  tasks,
+}: {
+  tasks: InternTaskRecord[]
+}) {
+  const router = useRouter()
+  const [taskList, setTaskList] = React.useState<InternTaskRecord[]>(tasks)
+  const [notice, setNotice] = React.useState("")
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [priorityFilter, setPriorityFilter] =
     React.useState<(typeof PRIORITY_FILTERS)[number]>("All")
   const [page, setPage] = React.useState(1)
-  const [viewTask, setViewTask] = React.useState<SupervisorTask | null>(null)
+  const [viewTask, setViewTask] = React.useState<InternTaskRecord | null>(null)
 
   React.useEffect(() => {
-    setTaskList(tasksForIntern(intern.name))
-  }, [intern.name])
+    setTaskList(tasks)
+  }, [tasks])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -152,13 +151,14 @@ export function InternTasksManager() {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
   }
 
-  function updateStatus(id: string, status: TaskStatus) {
-    setTaskList((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, status } : task))
-    )
-    setViewTask((current) =>
-      current?.id === id ? { ...current, status } : current
-    )
+  async function updateStatus(id: string, status: TaskStatus) {
+    setNotice("")
+    const result = await updateOwnTaskStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
   const triggerClass = cn(
@@ -173,6 +173,7 @@ export function InternTasksManager() {
         <p className="text-sm text-muted-foreground">
           Track assigned work, update status, and send tasks for review.
         </p>
+        {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
       </div>
 
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">

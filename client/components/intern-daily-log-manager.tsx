@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   MoreHorizontal,
   NotebookPen,
@@ -8,6 +9,12 @@ import {
   Search,
 } from "lucide-react"
 
+import {
+  createDailyLog,
+  deleteDailyLog,
+  updateDailyLog,
+} from "@/app/actions/intern-records"
+import type { InternLogRecord } from "@/lib/intern-data"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -58,16 +65,11 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   DAILY_LOG_STATUS_STYLES,
   formatLogDate,
-  getDailyLogsForIntern,
-  type DailyLog,
   type DailyLogStatus,
 } from "@/lib/daily-logs"
-import { getUserForRole } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
-/** Demo “today” aligned with seed log dates. */
-const SEED_TODAY = "2026-04-03"
 
 const STATUS_FILTERS: Array<"All" | DailyLogStatus> = [
   "All",
@@ -76,15 +78,17 @@ const STATUS_FILTERS: Array<"All" | DailyLogStatus> = [
   "Flagged",
 ]
 
-const emptyForm = {
-  date: SEED_TODAY,
-  hours: "7.5",
-  summary: "",
-  blockers: "",
-  tomorrow: "",
+function emptyFormFor(today: string) {
+  return {
+    date: today,
+    hours: "7.5",
+    summary: "",
+    blockers: "",
+    tomorrow: "",
+  }
 }
 
-type LogForm = typeof emptyForm
+type LogForm = ReturnType<typeof emptyFormFor>
 
 function StatCard({
   label,
@@ -108,28 +112,33 @@ function StatCard({
   )
 }
 
-function canEditLog(log: DailyLog) {
+function canEditLog(log: InternLogRecord) {
   return log.status === "Submitted" || log.status === "Flagged"
 }
 
-export function InternDailyLogManager() {
-  const intern = getUserForRole("intern")
-  const [logList, setLogList] = React.useState<DailyLog[]>(() =>
-    getDailyLogsForIntern(intern.name)
-  )
+export function InternDailyLogManager({
+  logs,
+  today,
+}: {
+  logs: InternLogRecord[]
+  today: string
+}) {
+  const router = useRouter()
+  const [logList, setLogList] = React.useState<InternLogRecord[]>(logs)
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [page, setPage] = React.useState(1)
   const [createOpen, setCreateOpen] = React.useState(false)
-  const [editLog, setEditLog] = React.useState<DailyLog | null>(null)
-  const [viewLog, setViewLog] = React.useState<DailyLog | null>(null)
-  const [form, setForm] = React.useState<LogForm>(emptyForm)
+  const [editLog, setEditLog] = React.useState<InternLogRecord | null>(null)
+  const [viewLog, setViewLog] = React.useState<InternLogRecord | null>(null)
+  const [form, setForm] = React.useState<LogForm>(() => emptyFormFor(today))
   const [formError, setFormError] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
-    setLogList(getDailyLogsForIntern(intern.name))
-  }, [intern.name])
+    setLogList(logs)
+  }, [logs])
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -156,14 +165,14 @@ export function InternDailyLogManager() {
   }, [query, statusFilter])
 
   const counts = React.useMemo(() => {
-    const todayLogs = logList.filter((log) => log.date === SEED_TODAY)
+    const todayLogs = logList.filter((log) => log.date === today)
     return {
       entries: logList.length,
       todayHours: todayLogs.reduce((sum, log) => sum + log.hours, 0),
       awaiting: logList.filter((log) => log.status === "Submitted").length,
       flagged: logList.filter((log) => log.status === "Flagged").length,
     }
-  }, [logList])
+  }, [logList, today])
 
   function goToPage(nextPage: number) {
     setPage(Math.min(Math.max(nextPage, 1), totalPages))
@@ -171,11 +180,11 @@ export function InternDailyLogManager() {
 
   function openCreate() {
     setFormError("")
-    setForm({ ...emptyForm })
+    setForm(emptyFormFor(today))
     setCreateOpen(true)
   }
 
-  function openEdit(log: DailyLog) {
+  function openEdit(log: InternLogRecord) {
     if (!canEditLog(log)) return
     setFormError("")
     setEditLog(log)
@@ -188,10 +197,16 @@ export function InternDailyLogManager() {
     })
   }
 
-  function removeLog(id: string) {
-    setLogList((prev) => prev.filter((log) => log.id !== id))
+  async function removeLog(id: string) {
+    setFormError("")
+    const result = await deleteDailyLog(id)
+    if (result.error) {
+      setFormError(result.error)
+      return
+    }
     setViewLog((current) => (current?.id === id ? null : current))
     setEditLog((current) => (current?.id === id ? null : current))
+    router.refresh()
   }
 
   function parseHours(value: string) {
@@ -200,7 +215,7 @@ export function InternDailyLogManager() {
     return Math.round(hours * 10) / 10
   }
 
-  function handleCreate(event: React.FormEvent) {
+  async function handleCreate(event: React.FormEvent) {
     event.preventDefault()
     const hours = parseHours(form.hours)
     if (!form.date || !form.summary.trim() || hours === null) {
@@ -208,32 +223,26 @@ export function InternDailyLogManager() {
       return
     }
 
-    const next: DailyLog = {
-      id: `log-${Date.now()}`,
-      intern: intern.name,
+    setSaving(true)
+    setFormError("")
+    const result = await createDailyLog({
       date: form.date,
       hours,
-      summary: form.summary.trim(),
-      blockers: form.blockers.trim() || "None.",
-      tomorrow: form.tomorrow.trim(),
-      status: "Submitted",
-      mentorNote: "",
+      summary: form.summary,
+      blockers: form.blockers,
+      tomorrow: form.tomorrow,
+    })
+    setSaving(false)
+    if (result.error) {
+      setFormError(result.error)
+      return
     }
-
-    setLogList((prev) =>
-      [next, ...prev].sort(
-        (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)
-      )
-    )
     setCreateOpen(false)
-    setForm(emptyForm)
-    setFormError("")
-    setStatusFilter("All")
-    setQuery("")
-    setPage(1)
+    setForm(emptyFormFor(today))
+    router.refresh()
   }
 
-  function handleEdit(event: React.FormEvent) {
+  async function handleEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editLog) return
     const hours = parseHours(form.hours)
@@ -242,27 +251,23 @@ export function InternDailyLogManager() {
       return
     }
 
-    setLogList((prev) =>
-      prev
-        .map((log) =>
-          log.id === editLog.id
-            ? {
-                ...log,
-                date: form.date,
-                hours,
-                summary: form.summary.trim(),
-                blockers: form.blockers.trim() || "None.",
-                tomorrow: form.tomorrow.trim(),
-                status: "Submitted" as DailyLogStatus,
-              }
-            : log
-        )
-        .sort(
-          (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)
-        )
-    )
-    setEditLog(null)
+    setSaving(true)
     setFormError("")
+    const result = await updateDailyLog({
+      id: editLog.id,
+      date: form.date,
+      hours,
+      summary: form.summary,
+      blockers: form.blockers,
+      tomorrow: form.tomorrow,
+    })
+    setSaving(false)
+    if (result.error) {
+      setFormError(result.error)
+      return
+    }
+    setEditLog(null)
+    router.refresh()
   }
 
   return (
@@ -289,7 +294,7 @@ export function InternDailyLogManager() {
         <StatCard
           label="Hours today"
           value={counts.todayHours}
-          hint={formatLogDate(SEED_TODAY)}
+          hint={formatLogDate(today)}
         />
         <StatCard
           label="Awaiting review"

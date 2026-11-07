@@ -7,10 +7,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { loadAdminSupervisors } from "@/lib/admin-data"
 
-export default function AdminSupervisorsPage() {
+export default async function AdminSupervisorsPage() {
+  const { supervisors, programmes, assignedCounts, error } =
+    await loadAdminSupervisors()
+
   return (
     <div className="flex flex-col gap-6">
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Card>
         <CardHeader>
           <CardTitle>Create supervisor account</CardTitle>
@@ -23,7 +28,11 @@ export default function AdminSupervisorsPage() {
           <AdminCreateUserForm defaultRole="supervisor" />
         </CardContent>
       </Card>
-      <AdminSupervisorsManager />
+      <AdminSupervisorsManager
+        supervisors={supervisors}
+        programmes={programmes}
+        assignedCounts={assignedCounts}
+      />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Check,
   ChevronDown,
@@ -58,13 +59,15 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  deleteProgramme,
+  saveProgramme,
+  updateProgrammeStatus,
+} from "@/app/actions/admin-records"
+import type { AdminProgramme, NamedOption } from "@/lib/admin-data"
+import {
   formatProgrammeDate,
-  getProgrammeInternCount,
-  getProgrammeLeadOptions,
   PROGRAMME_NAMES,
   PROGRAMME_STATUS_STYLES,
-  programmes as seedProgrammes,
-  type Programme,
   type ProgrammeStatus,
 } from "@/lib/programmes"
 import { cn } from "@/lib/utils"
@@ -87,13 +90,11 @@ const COHORTS = [
   "Summer 2025",
 ] as const
 
-const leadOptions = getProgrammeLeadOptions()
-
 const emptyForm = {
   name: "",
   cohort: "",
   description: "",
-  leadSupervisor: leadOptions[0] ?? "Jordan Peters",
+  leadId: "",
   startDate: "",
   endDate: "",
   capacity: "10",
@@ -124,22 +125,35 @@ function StatCard({
   )
 }
 
-export function AdminProgrammesManager() {
+export function AdminProgrammesManager({
+  programmes,
+  leads,
+  enrolledCounts,
+}: {
+  programmes: AdminProgramme[]
+  leads: NamedOption[]
+  enrolledCounts: Record<string, number>
+}) {
+  const router = useRouter()
   const [programmeList, setProgrammeList] =
-    React.useState<Programme[]>(seedProgrammes)
+    React.useState<AdminProgramme[]>(programmes)
+  const [notice, setNotice] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] =
     React.useState<(typeof STATUS_FILTERS)[number]>("All")
   const [cohortFilter, setCohortFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [addOpen, setAddOpen] = React.useState(false)
-  const [viewProgramme, setViewProgramme] = React.useState<Programme | null>(
-    null
-  )
-  const [editProgramme, setEditProgramme] = React.useState<Programme | null>(
-    null
-  )
+  const [viewProgramme, setViewProgramme] =
+    React.useState<AdminProgramme | null>(null)
+  const [editProgramme, setEditProgramme] =
+    React.useState<AdminProgramme | null>(null)
   const [form, setForm] = React.useState<ProgrammeForm>(emptyForm)
+
+  React.useEffect(() => {
+    setProgrammeList(programmes)
+  }, [programmes])
 
   const cohorts = React.useMemo(() => {
     const values = new Set<string>([
@@ -148,6 +162,17 @@ export function AdminProgrammesManager() {
     ])
     return Array.from(values)
   }, [programmeList])
+
+  const nameOptions = React.useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...PROGRAMME_NAMES,
+          ...programmeList.map((programme) => programme.name),
+        ])
+      ),
+    [programmeList]
+  )
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -193,13 +218,13 @@ export function AdminProgrammesManager() {
     setAddOpen(true)
   }
 
-  function openEdit(programme: Programme) {
+  function openEdit(programme: AdminProgramme) {
     setEditProgramme(programme)
     setForm({
       name: programme.name,
       cohort: programme.cohort,
       description: programme.description,
-      leadSupervisor: programme.leadSupervisor,
+      leadId: programme.leadId ?? "",
       startDate: programme.startDate,
       endDate: programme.endDate,
       capacity: String(programme.capacity),
@@ -207,22 +232,28 @@ export function AdminProgrammesManager() {
     })
   }
 
-  function updateStatus(id: string, status: ProgrammeStatus) {
-    setProgrammeList((prev) =>
-      prev.map((programme) =>
-        programme.id === id ? { ...programme, status } : programme
-      )
-    )
+  async function updateStatus(id: string, status: ProgrammeStatus) {
+    setNotice("")
+    const result = await updateProgrammeStatus(id, status)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function removeProgramme(id: string) {
-    setProgrammeList((prev) =>
-      prev.filter((programme) => programme.id !== id)
-    )
+  async function removeProgramme(id: string) {
+    setNotice("")
+    const result = await deleteProgramme(id)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setViewProgramme((current) => (current?.id === id ? null : current))
+    router.refresh()
   }
 
-  function handleAdd(event: React.FormEvent) {
+  async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
     if (
       !form.name.trim() ||
@@ -232,50 +263,51 @@ export function AdminProgrammesManager() {
     ) {
       return
     }
-
-    const next: Programme = {
-      id: `prg-${Date.now()}`,
-      name: form.name.trim(),
-      cohort: form.cohort.trim(),
-      description: form.description.trim(),
-      leadSupervisor: form.leadSupervisor,
+    setSaving(true)
+    setNotice("")
+    const result = await saveProgramme({
+      name: form.name,
+      cohort: form.cohort,
+      description: form.description,
+      leadId: form.leadId,
       startDate: form.startDate,
       endDate: form.endDate,
       capacity: Number(form.capacity) || 1,
       status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
     }
-
-    setProgrammeList((prev) => [next, ...prev])
     setAddOpen(false)
     setForm(emptyForm)
-    setStatusFilter("All")
-    setCohortFilter("All")
-    setQuery("")
-    setPage(1)
+    router.refresh()
   }
 
-  function handleEdit(event: React.FormEvent) {
+  async function handleEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editProgramme) return
-
-    setProgrammeList((prev) =>
-      prev.map((programme) =>
-        programme.id === editProgramme.id
-          ? {
-              ...programme,
-              name: form.name.trim(),
-              cohort: form.cohort.trim(),
-              description: form.description.trim(),
-              leadSupervisor: form.leadSupervisor,
-              startDate: form.startDate,
-              endDate: form.endDate,
-              capacity: Number(form.capacity) || programme.capacity,
-              status: form.status,
-            }
-          : programme
-      )
-    )
+    setSaving(true)
+    setNotice("")
+    const result = await saveProgramme({
+      id: editProgramme.id,
+      name: form.name,
+      cohort: form.cohort,
+      description: form.description,
+      leadId: form.leadId,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      capacity: Number(form.capacity) || editProgramme.capacity,
+      status: form.status,
+    })
+    setSaving(false)
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
     setEditProgramme(null)
+    router.refresh()
   }
 
   return (
@@ -286,6 +318,7 @@ export function AdminProgrammesManager() {
           <p className="text-sm text-muted-foreground">
             Plan cohorts, capacity, and programme timelines.
           </p>
+          {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
         </div>
         <Button onClick={openAdd} className="w-full shrink-0 sm:w-auto">
           <Plus />
@@ -416,7 +449,7 @@ export function AdminProgrammesManager() {
                 </TableRow>
               ) : (
                 pageRows.map((programme) => {
-                  const enrolled = getProgrammeInternCount(programme.name)
+                  const enrolled = enrolledCounts[programme.id] ?? 0
                   const load = Math.min(
                     100,
                     Math.round((enrolled / programme.capacity) * 100)
@@ -626,7 +659,14 @@ export function AdminProgrammesManager() {
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <ProgrammeFormFields form={form} setForm={setForm} allowCustom />
+              <ProgrammeFormFields
+                form={form}
+                setForm={setForm}
+                allowCustom
+                nameOptions={nameOptions}
+                cohortOptions={cohorts}
+                leads={leads}
+              />
             </div>
             <DialogFooter className="shrink-0 p-3">
               <Button
@@ -659,7 +699,14 @@ export function AdminProgrammesManager() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit}>
-            <ProgrammeFormFields form={form} setForm={setForm} allowCustom />
+            <ProgrammeFormFields
+              form={form}
+              setForm={setForm}
+              allowCustom
+              nameOptions={nameOptions}
+              cohortOptions={cohorts}
+              leads={leads}
+            />
             <DialogFooter className="p-3">
               <Button
                 type="button"
@@ -710,7 +757,7 @@ export function AdminProgrammesManager() {
                 />
                 <DetailRow
                   label="Enrolment"
-                  value={`${getProgrammeInternCount(viewProgramme.name)}/${viewProgramme.capacity}`}
+                  value={`${enrolledCounts[viewProgramme.id] ?? 0}/${viewProgramme.capacity}`}
                 />
                 <DetailRow label="Status" value={viewProgramme.status} />
                 <div className="grid min-w-0 gap-1">
@@ -763,15 +810,23 @@ function ProgrammeFormFields({
   form,
   setForm,
   allowCustom = false,
+  nameOptions,
+  cohortOptions,
+  leads,
 }: {
   form: ProgrammeForm
   setForm: React.Dispatch<React.SetStateAction<ProgrammeForm>>
   allowCustom?: boolean
+  nameOptions: string[]
+  cohortOptions: string[]
+  leads: NamedOption[]
 }) {
   const triggerClass = cn(
     buttonVariants({ variant: "outline" }),
     "h-8 w-full justify-between rounded-sm px-2.5 font-normal"
   )
+  const leadLabel =
+    leads.find((lead) => lead.id === form.leadId)?.name ?? "Select lead"
 
   return (
     <div className="grid gap-3 px-4 py-3">
@@ -796,7 +851,7 @@ function ProgrammeFormFields({
                   <ChevronDown className="size-4 opacity-60" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="min-w-52">
-                  {PROGRAMME_NAMES.map((name) => (
+                  {nameOptions.map((name) => (
                     <DropdownMenuItem
                       key={name}
                       onClick={() => setForm((prev) => ({ ...prev, name }))}
@@ -829,7 +884,7 @@ function ProgrammeFormFields({
                   <ChevronDown className="size-4 opacity-60" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="min-w-44">
-                  {COHORTS.map((cohort) => (
+                  {cohortOptions.map((cohort) => (
                     <DropdownMenuItem
                       key={cohort}
                       onClick={() => setForm((prev) => ({ ...prev, cohort }))}
@@ -847,7 +902,7 @@ function ProgrammeFormFields({
             <Field className="sm:col-span-2">
               <FieldLabel>Quick fill</FieldLabel>
               <div className="flex flex-wrap gap-1.5">
-                {PROGRAMME_NAMES.map((name) => (
+                {nameOptions.map((name) => (
                   <button
                     key={name}
                     type="button"
@@ -887,20 +942,20 @@ function ProgrammeFormFields({
             <FieldLabel>Lead supervisor</FieldLabel>
             <DropdownMenu>
               <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{form.leadSupervisor}</span>
+                <span className="truncate">{leadLabel}</span>
                 <ChevronDown className="size-4 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="min-w-52">
-                {leadOptions.map((lead) => (
+                {leads.map((lead) => (
                   <DropdownMenuItem
-                    key={lead}
+                    key={lead.id}
                     onClick={() =>
-                      setForm((prev) => ({ ...prev, leadSupervisor: lead }))
+                      setForm((prev) => ({ ...prev, leadId: lead.id }))
                     }
                     className="justify-between"
                   >
-                    {lead}
-                    {form.leadSupervisor === lead && (
+                    {lead.name}
+                    {form.leadId === lead.id && (
                       <Check className="size-4" />
                     )}
                   </DropdownMenuItem>

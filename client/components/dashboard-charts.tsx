@@ -4,15 +4,6 @@ import { OverviewBarChart } from "@/components/overview-bar-chart"
 import { OverviewPieChart } from "@/components/overview-pie-chart"
 import { type ChartConfig } from "@/components/ui/chart"
 
-const adminBarChartData = [
-  { month: "January", interns: 18, supervisors: 4 },
-  { month: "February", interns: 20, supervisors: 5 },
-  { month: "March", interns: 22, supervisors: 5 },
-  { month: "April", interns: 21, supervisors: 6 },
-  { month: "May", interns: 24, supervisors: 6 },
-  { month: "June", interns: 24, supervisors: 6 },
-]
-
 const adminBarChartConfig = {
   interns: {
     label: "Interns",
@@ -23,60 +14,6 @@ const adminBarChartConfig = {
     color: "var(--chart-2)",
   },
 } satisfies ChartConfig
-
-const adminPieChartData = [
-  {
-    name: "software",
-    value: 10,
-    fill: "var(--color-software)",
-  },
-  {
-    name: "frontend",
-    value: 6,
-    fill: "var(--color-frontend)",
-  },
-  {
-    name: "backend",
-    value: 5,
-    fill: "var(--color-backend)",
-  },
-  {
-    name: "design",
-    value: 3,
-    fill: "var(--color-design)",
-  },
-]
-
-const adminPieChartConfig = {
-  value: {
-    label: "Interns",
-  },
-  software: {
-    label: "Software Engineering",
-    color: "var(--chart-1)",
-  },
-  frontend: {
-    label: "Frontend Development",
-    color: "var(--chart-2)",
-  },
-  backend: {
-    label: "Backend Development",
-    color: "var(--chart-3)",
-  },
-  design: {
-    label: "UI/UX Design",
-    color: "var(--chart-4)",
-  },
-} satisfies ChartConfig
-
-const supervisorBarChartData = [
-  { month: "January", tasks: 12, reviews: 4 },
-  { month: "February", tasks: 15, reviews: 6 },
-  { month: "March", tasks: 18, reviews: 8 },
-  { month: "April", tasks: 14, reviews: 5 },
-  { month: "May", tasks: 20, reviews: 9 },
-  { month: "June", tasks: 16, reviews: 7 },
-]
 
 const supervisorBarChartConfig = {
   tasks: {
@@ -89,149 +26,133 @@ const supervisorBarChartConfig = {
   },
 } satisfies ChartConfig
 
-const supervisorPieChartData = [
-  {
-    name: "inProgress",
-    value: 7,
-    fill: "var(--color-inProgress)",
-  },
-  {
-    name: "review",
-    value: 3,
-    fill: "var(--color-review)",
-  },
-  {
-    name: "overdue",
-    value: 2,
-    fill: "var(--color-overdue)",
-  },
-  {
-    name: "done",
-    value: 2,
-    fill: "var(--color-done)",
-  },
-]
-
-const supervisorPieChartConfig = {
-  value: {
-    label: "Tasks",
-  },
-  inProgress: {
-    label: "In progress",
-    color: "var(--chart-1)",
-  },
-  review: {
-    label: "Review",
-    color: "var(--chart-2)",
-  },
-  overdue: {
-    label: "Overdue",
-    color: "var(--chart-3)",
-  },
-  done: {
-    label: "Done",
-    color: "var(--chart-4)",
-  },
-} satisfies ChartConfig
-
-const internPieChartData = [
-  {
-    name: "inProgress",
-    value: 6,
-    fill: "var(--color-inProgress)",
-  },
-  {
-    name: "review",
-    value: 2,
-    fill: "var(--color-review)",
-  },
-  {
-    name: "overdue",
-    value: 1,
-    fill: "var(--color-overdue)",
-  },
-  {
-    name: "done",
-    value: 3,
-    fill: "var(--color-done)",
-  },
-]
-
-const internPieChartConfig = {
-  value: {
-    label: "Tasks",
-  },
-  inProgress: {
-    label: "In progress",
-    color: "var(--chart-1)",
-  },
-  review: {
-    label: "Review",
-    color: "var(--chart-2)",
-  },
-  overdue: {
-    label: "Overdue",
-    color: "var(--chart-3)",
-  },
-  done: {
-    label: "Done",
-    color: "var(--chart-4)",
-  },
-} satisfies ChartConfig
-
-export function AdminOverviewBarChart() {
+export function AdminOverviewBarChart({
+  data,
+}: {
+  data: { month: string; interns: number; supervisors: number }[]
+}) {
   return (
     <OverviewBarChart
       title="Programme activity"
       description="Intern and supervisor counts over the last 6 months"
-      data={adminBarChartData}
+      data={data}
       config={adminBarChartConfig}
       series={["interns", "supervisors"]}
     />
   )
 }
 
-export function AdminOverviewPieChart() {
+export function AdminOverviewPieChart({
+  data,
+}: {
+  data: { name: string; value: number }[]
+}) {
+  const chartData = data.map((item, index) => ({
+    name: `p${index}`,
+    value: item.value,
+    fill: `var(--color-p${index})`,
+  }))
+  const config = {
+    value: { label: "Interns" },
+    ...Object.fromEntries(
+      data.map((item, index) => [
+        `p${index}`,
+        {
+          label: item.name,
+          color: `var(--chart-${(index % 5) + 1})`,
+        },
+      ])
+    ),
+  } satisfies ChartConfig
+
   return (
     <OverviewPieChart
       title="Programme distribution"
       description="Active interns by programme"
-      data={adminPieChartData}
-      config={adminPieChartConfig}
+      data={chartData}
+      config={config}
     />
   )
 }
 
-export function SupervisorOverviewBarChart() {
+export function SupervisorOverviewBarChart({
+  data,
+}: {
+  data: { month: string; tasks: number; reviews: number }[]
+}) {
   return (
     <OverviewBarChart
       title="Team activity"
       description="Tasks and reviews over the last 6 months"
-      data={supervisorBarChartData}
+      data={data}
       config={supervisorBarChartConfig}
       series={["tasks", "reviews"]}
     />
   )
 }
 
-export function SupervisorOverviewPieChart() {
+export function SupervisorOverviewPieChart({
+  data,
+}: {
+  data: { name: string; value: number }[]
+}) {
+  const chartData = data.map((item, index) => ({
+    name: `s${index}`,
+    value: item.value,
+    fill: `var(--color-s${index})`,
+  }))
+  const config = {
+    value: { label: "Tasks" },
+    ...Object.fromEntries(
+      data.map((item, index) => [
+        `s${index}`,
+        {
+          label: item.name,
+          color: `var(--chart-${(index % 5) + 1})`,
+        },
+      ])
+    ),
+  } satisfies ChartConfig
+
   return (
     <OverviewPieChart
       title="Task status"
       description="Current tasks across your interns"
-      data={supervisorPieChartData}
-      config={supervisorPieChartConfig}
+      data={chartData}
+      config={config}
     />
   )
 }
 
-export function InternOverviewChart() {
+export function InternOverviewChart({
+  data,
+}: {
+  data: { name: string; value: number }[]
+}) {
+  const chartData = data.map((item, index) => ({
+    name: `i${index}`,
+    value: item.value,
+    fill: `var(--color-i${index})`,
+  }))
+  const config = {
+    value: { label: "Tasks" },
+    ...Object.fromEntries(
+      data.map((item, index) => [
+        `i${index}`,
+        {
+          label: item.name,
+          color: `var(--chart-${(index % 5) + 1})`,
+        },
+      ])
+    ),
+  } satisfies ChartConfig
+
   return (
     <OverviewPieChart
       title="Task status"
       description="Breakdown of your current tasks"
-      data={internPieChartData}
-      config={internPieChartConfig}
+      data={chartData}
+      config={config}
     />
   )
 }

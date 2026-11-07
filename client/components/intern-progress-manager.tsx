@@ -25,15 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  formatProgressDate,
-  getMilestonesForIntern,
-  getProgressSummary,
-  MODULE_STATUS_STYLES,
-  progressTrend,
-} from "@/lib/progress"
-import { getTasksForIntern, TASK_STATUS_STYLES } from "@/lib/tasks"
-import { getUserForRole } from "@/lib/users"
+import type { InternProgressView } from "@/lib/intern-data"
+import { formatProgressDate, MODULE_STATUS_STYLES } from "@/lib/progress"
+import { TASK_STATUS_STYLES } from "@/lib/tasks"
 import { cn } from "@/lib/utils"
 import { OverviewPieChart } from "@/components/overview-pie-chart"
 
@@ -66,61 +60,34 @@ function StatCard({
   )
 }
 
-export function InternProgressManager() {
-  const user = getUserForRole("intern")
-  const summary = React.useMemo(
-    () => getProgressSummary(user.name),
-    [user.name]
-  )
-  const milestones = React.useMemo(
-    () => getMilestonesForIntern(user.name),
-    [user.name]
-  )
-  const tasks = React.useMemo(
-    () => getTasksForIntern(user.name),
-    [user.name]
-  )
+export function InternProgressManager({
+  progress,
+}: {
+  progress: InternProgressView
+}) {
+  const summary = progress
+  const milestones = progress.milestones
+  const tasks = progress.tasks
+  const intern = summary.intern
 
-  const taskPieData = React.useMemo(() => {
-    const counts = {
-      inProgress: tasks.filter((task) => task.status === "In progress").length,
-      review: tasks.filter((task) => task.status === "Review").length,
-      overdue: tasks.filter((task) => task.status === "Overdue").length,
-      done: tasks.filter((task) => task.status === "Done").length,
-    }
-    return [
-      {
-        name: "inProgress",
-        value: counts.inProgress,
-        fill: "var(--color-inProgress)",
-      },
-      {
-        name: "review",
-        value: counts.review,
-        fill: "var(--color-review)",
-      },
-      {
-        name: "overdue",
-        value: counts.overdue,
-        fill: "var(--color-overdue)",
-      },
-      {
-        name: "done",
-        value: counts.done,
-        fill: "var(--color-done)",
-      },
-    ]
-  }, [tasks])
+  const taskPieData = progress.pie.map((item, index) => ({
+    name: `t${index}`,
+    value: item.value,
+    fill: `var(--color-t${index})`,
+  }))
 
   const taskPieConfig = {
     value: { label: "Tasks" },
-    inProgress: { label: "In progress", color: "var(--chart-1)" },
-    review: { label: "Review", color: "var(--chart-2)" },
-    overdue: { label: "Overdue", color: "var(--chart-3)" },
-    done: { label: "Done", color: "var(--chart-4)" },
+    ...Object.fromEntries(
+      progress.pie.map((item, index) => [
+        `t${index}`,
+        {
+          label: item.name,
+          color: `var(--chart-${(index % 5) + 1})`,
+        },
+      ])
+    ),
   } satisfies ChartConfig
-
-  const intern = summary.intern
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6">
@@ -205,7 +172,7 @@ export function InternProgressManager() {
             >
               <BarChart
                 accessibilityLayer
-                data={progressTrend}
+                data={progress.trend}
                 margin={{ left: 8, right: 12 }}
               >
                 <CartesianGrid vertical={false} />
