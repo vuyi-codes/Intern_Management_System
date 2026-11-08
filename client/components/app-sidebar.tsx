@@ -3,10 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { GalleryVerticalEnd } from "lucide-react"
+import { Bell, GalleryVerticalEnd } from "lucide-react"
 
 import { DashboardSettings } from "@/components/dashboard-settings"
+import { CountBadge, useInbox } from "@/components/inbox-provider"
 import { NavUser } from "@/components/nav-user"
+import { NotificationsPanel } from "@/components/notifications-panel"
 import {
   Dialog,
   DialogContent,
@@ -47,7 +49,9 @@ type AppSidebarProps = {
 
 export function AppSidebar({ role, user }: AppSidebarProps) {
   const pathname = usePathname()
+  const { unreadNotifications, refreshInbox } = useInbox()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false)
 
   const items = getNavForRole(role)
 
@@ -107,41 +111,83 @@ export function AppSidebar({ role, user }: AppSidebarProps) {
         </SidebarContent>
 
         <SidebarFooter>
-          {(settingsNav || remainingFooter.length > 0) && (
-            <SidebarMenu className="gap-1">
-              {remainingFooter.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    className="rounded-sm"
-                    render={<Link href={item.href} />}
-                    tooltip={item.title}
-                    isActive={isNavItemActive(item, pathname)}
-                  >
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {settingsNav && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    className="rounded-sm"
-                    tooltip={settingsNav.title}
-                    isActive={settingsOpen}
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <settingsNav.icon />
-                    <span>{settingsNav.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          )}
+          <SidebarMenu className="gap-1">
+            {remainingFooter.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  className="rounded-sm"
+                  render={<Link href={item.href} />}
+                  tooltip={item.title}
+                  isActive={isNavItemActive(item, pathname)}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="rounded-sm"
+                tooltip={
+                  unreadNotifications > 0
+                    ? `Notifications (${unreadNotifications})`
+                    : "Notifications"
+                }
+                isActive={notificationsOpen}
+                onClick={() => setNotificationsOpen(true)}
+              >
+                <span className="relative">
+                  <Bell />
+                  <CountBadge count={unreadNotifications} />
+                </span>
+                <span>Notifications</span>
+                {unreadNotifications > 0 ? (
+                  <span className="ml-auto text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                    {unreadNotifications}
+                  </span>
+                ) : null}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {settingsNav && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="rounded-sm"
+                  tooltip={settingsNav.title}
+                  isActive={settingsOpen}
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <settingsNav.icon />
+                  <span>{settingsNav.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
           <NavUser user={user} />
         </SidebarFooter>
 
         <SidebarRail />
       </Sidebar>
+
+      <Dialog
+        open={notificationsOpen}
+        onOpenChange={(next) => {
+          setNotificationsOpen(next)
+          if (!next) void refreshInbox()
+        }}
+      >
+        <DialogContent className="max-w-md p-0">
+          <DialogHeader>
+            <DialogTitle>Notifications</DialogTitle>
+            <DialogDescription>
+              Recent updates for your {roleLabels[role].toLowerCase()}{" "}
+              workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto">
+            <NotificationsPanel role={role} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl p-0">

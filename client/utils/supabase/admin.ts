@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 
+import type { Database } from "@/types/database"
+
 /**
  * Service-role client for privileged admin operations only.
  * Never import this into Client Components or expose the key publicly.
@@ -15,7 +17,7 @@ export function createAdminClient() {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set")
   }
 
-  return createClient(url, key, {
+  return createClient<Database>(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

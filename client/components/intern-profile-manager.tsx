@@ -24,7 +24,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { getStoredAvatar } from "@/lib/avatars"
 import {
   parseSkillsInput,
   type InternProfileDetails,
@@ -62,7 +61,7 @@ export function InternProfileManager({
   React.useEffect(() => {
     setDetails(initialDetails)
     setSkillsText(initialDetails.skills.join(", "))
-    setAvatar(getStoredAvatar("intern") ?? user.avatar)
+    setAvatar(user.avatar)
   }, [initialDetails, user.avatar])
 
   function updateField<K extends keyof InternProfileDetails>(

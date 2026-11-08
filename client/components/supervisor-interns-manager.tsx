@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { updateAssignedInternStatus } from "@/app/actions/supervisor-records"
+import { openMessagesDrawer } from "@/lib/messages"
 import type { SupervisorIntern } from "@/lib/supervisor-data"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -415,7 +416,7 @@ export function SupervisorInternsManager({
                               Open reviews
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              render={<Link href="/supervisor/messages" />}
+                              onClick={() => openMessagesDrawer(intern.id)}
                             >
                               Message intern
                             </DropdownMenuItem>
@@ -603,15 +604,16 @@ export function SupervisorInternsManager({
                 >
                   Logs
                 </Link>
-                <Link
-                  href="/supervisor/messages"
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "rounded-sm"
-                  )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    openMessagesDrawer(viewIntern.id)
+                    setViewIntern(null)
+                  }}
                 >
                   Message
-                </Link>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation"
 import { ImagePlus, Loader2 } from "lucide-react"
 
 import {
+  setAvatarUrl,
   updateAccountPassword,
   updateAccountProfile,
+  uploadAvatar,
 } from "@/app/actions/account"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -18,11 +20,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import {
-  getStoredAvatar,
-  setStoredAvatar,
-  STOCK_AVATARS,
-} from "@/lib/avatars"
+import { notifyAvatarChange, STOCK_AVATARS } from "@/lib/avatars"
 import { getUserForRole, type AppUser } from "@/lib/users"
 import { roleLabels, type Role } from "@/lib/nav"
 import { cn } from "@/lib/utils"
@@ -69,12 +67,13 @@ export function AccountSettings({ role, className, user }: AccountSettingsProps)
   const [passwordSaved, setPasswordSaved] = React.useState(false)
   const [profileError, setProfileError] = React.useState("")
   const [passwordError, setPasswordError] = React.useState("")
+  const [avatarError, setAvatarError] = React.useState("")
+  const [savingAvatar, setSavingAvatar] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
-    const stored = getStoredAvatar(role)
     const source = user ?? getUserForRole(role)
-    setProfile({ ...source, avatar: stored ?? source.avatar })
+    setProfile(source)
   }, [role, user])
 
   function updateProfile<K extends keyof AppUser>(key: K, value: AppUser[K]) {
@@ -82,23 +81,66 @@ export function AccountSettings({ role, className, user }: AccountSettingsProps)
     setProfileSaved(false)
   }
 
-  function applyAvatar(src: string | undefined) {
+  async function applyAvatar(src: string | undefined) {
+    const previous = profile.avatar
     updateProfile("avatar", src)
-    setStoredAvatar(role, src)
+    setAvatarError("")
+    notifyAvatarChange(role, src)
+
+    if (!user) return
+
+    setSavingAvatar(true)
+    const result = await setAvatarUrl(src ?? null)
+    setSavingAvatar(false)
+    if (result.error) {
+      updateProfile("avatar", previous)
+      notifyAvatarChange(role, previous)
+      setAvatarError(result.error)
+      return
+    }
+    router.refresh()
   }
 
-  function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file || !file.type.startsWith("image/")) return
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        applyAvatar(reader.result)
-      }
-    }
-    reader.readAsDataURL(file)
     event.target.value = ""
+
+    if (!user) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          updateProfile("avatar", reader.result)
+          notifyAvatarChange(role, reader.result)
+        }
+      }
+      reader.readAsDataURL(file)
+      return
+    }
+
+    const previous = profile.avatar
+    const previewUrl = URL.createObjectURL(file)
+    updateProfile("avatar", previewUrl)
+    notifyAvatarChange(role, previewUrl)
+    setAvatarError("")
+    setSavingAvatar(true)
+
+    const formData = new FormData()
+    formData.set("file", file)
+    const result = await uploadAvatar(formData)
+    setSavingAvatar(false)
+    URL.revokeObjectURL(previewUrl)
+
+    if (result.error || !result.url) {
+      updateProfile("avatar", previous)
+      notifyAvatarChange(role, previous)
+      setAvatarError(result.error ?? "Failed to upload avatar.")
+      return
+    }
+
+    updateProfile("avatar", result.url)
+    notifyAvatarChange(role, result.url)
+    router.refresh()
   }
 
   async function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -203,9 +245,14 @@ export function AccountSettings({ role, className, user }: AccountSettingsProps)
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={savingAvatar}
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <ImagePlus />
+                      {savingAvatar ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ImagePlus />
+                      )}
                       Upload photo
                     </Button>
                     {profile.avatar && (
@@ -213,12 +260,16 @@ export function AccountSettings({ role, className, user }: AccountSettingsProps)
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => applyAvatar(undefined)}
+                        disabled={savingAvatar}
+                        onClick={() => void applyAvatar(undefined)}
                       >
                         Remove
                       </Button>
                     )}
                   </div>
+                  {avatarError ? (
+                    <p className="text-sm text-destructive">{avatarError}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -235,9 +286,10 @@ export function AccountSettings({ role, className, user }: AccountSettingsProps)
                         key={avatar.id}
                         type="button"
                         title={avatar.label}
+                        disabled={savingAvatar}
                         aria-label={`Use ${avatar.label} avatar`}
                         aria-pressed={selected}
-                        onClick={() => applyAvatar(avatar.src)}
+                        onClick={() => void applyAvatar(avatar.src)}
                         className={cn(
                           "overflow-hidden rounded-sm border border-border p-0.5 transition-colors hover:border-foreground/40",
                           selected && "border-primary ring-2 ring-primary/30"

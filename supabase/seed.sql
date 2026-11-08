@@ -5,7 +5,7 @@
 -- users in Supabase Auth.
 --
 -- Manual steps before running this seed:
--- 1. Run migrations/0001_init.sql
+-- 1. Run migrations/0001_init.sql (and later 0002 / 0003 when applying those)
 -- 2. In Supabase Dashboard → Authentication → Users → Add user, create:
 --      admin@inkdot.com          (password of your choice)
 --      jordan.peters@inkdot.com
@@ -420,3 +420,27 @@ where p.email in (
   'ethan.jacobs@inkdot.com'
 )
 on conflict (user_id) do nothing;
+
+-- Sample notifications (requires 0003_messaging_notifications_avatars.sql)
+insert into public.notifications (user_id, title, detail, href, icon_key, unread, created_at)
+select p.id, v.title, v.detail, v.href, v.icon_key, v.unread, now() - v.age
+from public.profiles p
+join (
+  values
+    ('thabo.molefe@inkdot.com', 'Task due today', 'Build intern overview page is due at 17:00.', '/intern/tasks', 'task', true, interval '10 minutes'),
+    ('thabo.molefe@inkdot.com', 'Daily log reminder', 'Submit your log before end of day.', '/intern/daily-log', 'log', true, interval '1 hour'),
+    ('thabo.molefe@inkdot.com', 'Feedback received', 'Jordan Peters left comments on your last task.', '/intern/tasks', 'review', false, interval '1 day'),
+    ('jordan.peters@inkdot.com', 'Log awaiting review', 'Thabo submitted a daily log for review.', '/supervisor/logs', 'log', true, interval '20 minutes'),
+    ('jordan.peters@inkdot.com', 'Task marked complete', 'An intern finished a task.', '/supervisor/tasks', 'task', true, interval '2 hours'),
+    ('jordan.peters@inkdot.com', 'Review due', 'Mid-programme review is due tomorrow.', '/supervisor/reviews', 'review', false, interval '1 day'),
+    ('admin@inkdot.com', 'New enrolments', 'Applicants are waiting for approval.', '/admin/interns', 'bell', true, interval '30 minutes'),
+    ('admin@inkdot.com', 'Programme checkpoint', 'Frontend Q4 intake kickoff is today.', '/admin/programmes', 'review', true, interval '3 hours'),
+    ('admin@inkdot.com', 'Report ready', 'Summary can be exported from Reports.', '/admin/reports', 'task', false, interval '1 day')
+) as v(email, title, detail, href, icon_key, unread, age)
+  on p.email = v.email
+where not exists (
+  select 1
+  from public.notifications n
+  where n.user_id = p.id
+    and n.title = v.title
+);

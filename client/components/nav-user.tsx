@@ -4,7 +4,6 @@ import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
   BadgeCheck,
-  Bell,
   ChevronsUpDown,
   LogOut,
   Moon,
@@ -12,7 +11,6 @@ import {
 } from "lucide-react"
 
 import { AccountSettings } from "@/components/account-settings"
-import { NotificationsPanel } from "@/components/notifications-panel"
 import { useTheme } from "@/hooks/use-theme"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -38,7 +36,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { signOut } from "@/app/actions/auth"
-import { getStoredAvatar } from "@/lib/avatars"
 import { getRoleFromPathname, type Role } from "@/lib/nav"
 
 type User = {
@@ -81,12 +78,11 @@ export function NavUser({ user }: { user: User }) {
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [accountOpen, setAccountOpen] = React.useState(false)
-  const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [avatar, setAvatar] = React.useState<string | undefined>(user.avatar)
 
   React.useEffect(() => {
-    setAvatar(getStoredAvatar(role) ?? user.avatar)
-  }, [role, user.avatar])
+    setAvatar(user.avatar)
+  }, [user.avatar])
 
   React.useEffect(() => {
     function onAvatarChange(event: Event) {
@@ -111,11 +107,6 @@ export function NavUser({ user }: { user: User }) {
   function openAccount() {
     setMenuOpen(false)
     setAccountOpen(true)
-  }
-
-  function openNotifications() {
-    setMenuOpen(false)
-    setNotificationsOpen(true)
   }
 
   return (
@@ -156,10 +147,6 @@ export function NavUser({ user }: { user: User }) {
                   <BadgeCheck />
                   Account
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={openNotifications}>
-                  <Bell />
-                  Notifications
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => toggleTheme()}>
                   {theme === "dark" ? <Sun /> : <Moon />}
                   {theme === "dark" ? "Light mode" : "Dark mode"}
@@ -187,20 +174,6 @@ export function NavUser({ user }: { user: User }) {
           </DialogHeader>
           <div className="overflow-y-auto p-4">
             <AccountSettings role={role} />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-        <DialogContent className="max-w-md p-0">
-          <DialogHeader>
-            <DialogTitle>Notifications</DialogTitle>
-            <DialogDescription>
-              Recent updates for your {role} workspace.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="overflow-y-auto">
-            <NotificationsPanel role={role} />
           </div>
         </DialogContent>
       </Dialog>

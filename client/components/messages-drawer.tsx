@@ -16,6 +16,19 @@ import {
   X,
 } from "lucide-react"
 
+import {
+  deleteConversation as deleteConversationAction,
+  deleteMessage as deleteMessageAction,
+  editMessage as editMessageAction,
+  loadMyConversations,
+  restoreMessage as restoreMessageAction,
+  sendMessage as sendMessageAction,
+  setMessageReactions,
+  type ChatAttachment,
+  type ChatMessageRecord,
+  type ConversationRecord,
+} from "@/app/actions/messaging"
+import { CountBadge, useInbox } from "@/components/inbox-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Bubble,
@@ -61,6 +74,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 import { Separator } from "@/components/ui/separator"
+import type { OpenMessagesDetail } from "@/lib/messages"
 import { cn } from "@/lib/utils"
 import type { Role } from "@/lib/nav"
 
@@ -68,29 +82,9 @@ const EDIT_WINDOW_MS = 10 * 60 * 1000
 const UNDO_WINDOW_MS = 5_000
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "👀"] as const
 
-type Attachment = {
-  name: string
-  size: number
-}
-
-type ChatMessage = {
-  id: string
-  from: "me" | "them"
-  text: string
-  time: string
-  sentAt: number
-  edited?: boolean
-  attachment?: Attachment
-  reactions: string[]
-}
-
-type Conversation = {
-  id: string
-  name: string
-  roleLabel: string
-  preview: string
-  messages: ChatMessage[]
-}
+type Attachment = ChatAttachment
+type ChatMessage = ChatMessageRecord
+type Conversation = ConversationRecord
 
 type UndoState =
   | {
@@ -106,119 +100,6 @@ type UndoState =
       wasActive: boolean
     }
 
-// Fixed seed time so prerender stays stable (no Date.now() at module scope).
-const SEED_NOW = Date.UTC(2026, 10, 1, 12, 0, 0)
-
-const supervisorConversations: Conversation[] = [
-  {
-    id: "thabo",
-    name: "Thabo Molefe",
-    roleLabel: "Intern",
-    preview: "Pushed the component updates.",
-    messages: [
-      {
-        id: "1",
-        from: "them",
-        text: "Hi, I finished the dashboard cards.",
-        time: "09:12",
-        sentAt: SEED_NOW - 45 * 60 * 1000,
-        reactions: [],
-      },
-      {
-        id: "2",
-        from: "me",
-        text: "Nice. Can you also align the chart spacing?",
-        time: "09:18",
-        sentAt: SEED_NOW - 40 * 60 * 1000,
-        reactions: ["👍"],
-      },
-      {
-        id: "3",
-        from: "them",
-        text: "Pushed the component updates.",
-        time: "09:41",
-        sentAt: SEED_NOW - 20 * 60 * 1000,
-        reactions: [],
-      },
-    ],
-  },
-  {
-    id: "lerato",
-    name: "Lerato Dlamini",
-    roleLabel: "Intern",
-    preview: "Ready for review on auth middleware.",
-    messages: [
-      {
-        id: "1",
-        from: "them",
-        text: "Ready for review on auth middleware.",
-        time: "10:05",
-        sentAt: SEED_NOW - 15 * 60 * 1000,
-        reactions: [],
-      },
-      {
-        id: "2",
-        from: "me",
-        text: "I'll check it after standup.",
-        time: "10:12",
-        sentAt: SEED_NOW - 5 * 60 * 1000,
-        reactions: [],
-      },
-    ],
-  },
-  {
-    id: "sipho",
-    name: "Sipho Nkosi",
-    roleLabel: "Intern",
-    preview: "Need clarity on the test cases.",
-    messages: [
-      {
-        id: "1",
-        from: "them",
-        text: "Need clarity on the test cases.",
-        time: "11:20",
-        sentAt: SEED_NOW - 8 * 60 * 1000,
-        reactions: [],
-      },
-    ],
-  },
-]
-
-const internConversations: Conversation[] = [
-  {
-    id: "supervisor",
-    name: "Jordan Peters",
-    roleLabel: "Supervisor",
-    preview: "Send your daily log before 5pm.",
-    messages: [
-      {
-        id: "1",
-        from: "them",
-        text: "How is the overview page coming along?",
-        time: "08:40",
-        sentAt: SEED_NOW - 50 * 60 * 1000,
-        reactions: [],
-      },
-      {
-        id: "2",
-        from: "me",
-        text: "Almost done. Working on the tasks table now.",
-        time: "08:55",
-        sentAt: SEED_NOW - 4 * 60 * 1000,
-        reactions: ["🎉"],
-      },
-      {
-        id: "3",
-        from: "them",
-        text: "Send your daily log before 5pm.",
-        time: "09:10",
-        sentAt: SEED_NOW - 2 * 60 * 1000,
-        reactions: [],
-      },
-    ],
-  },
-]
-
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -226,13 +107,6 @@ function getInitials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase()
-}
-
-function formatTime(value: number) {
-  return new Date(value).toLocaleTimeString("en-ZA", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }
 
 function canEditMessage(message: ChatMessage, nowMs: number | null) {
@@ -251,15 +125,12 @@ type MessagesDrawerProps = {
 }
 
 export function MessagesDrawer({ role }: MessagesDrawerProps) {
-  const initialConversations =
-    role === "supervisor" ? supervisorConversations : internConversations
-
+  const { unreadMessages, markMessagesSeen, refreshInbox } = useInbox()
   const [open, setOpen] = React.useState(false)
-  const [conversations, setConversations] =
-    React.useState<Conversation[]>(initialConversations)
-  const [activeId, setActiveId] = React.useState<string | null>(
-    role === "intern" ? initialConversations[0]?.id ?? null : null
-  )
+  const [conversations, setConversations] = React.useState<Conversation[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [loadError, setLoadError] = React.useState("")
+  const [activeId, setActiveId] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState("")
   const [attachment, setAttachment] = React.useState<Attachment | null>(null)
   const [isRecording, setIsRecording] = React.useState(false)
@@ -272,23 +143,37 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
   const undoTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null
   )
+  const pendingChatDeleteRef = React.useRef<string | null>(null)
+  const pendingPeerIdRef = React.useRef<string | null>(null)
 
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeId) ?? null
 
+  const refreshConversations = React.useCallback(async () => {
+    setLoading(true)
+    setLoadError("")
+    const result = await loadMyConversations()
+    if (result.error) setLoadError(result.error)
+    setConversations(result.conversations)
+    setLoading(false)
+
+    const pendingPeerId = pendingPeerIdRef.current
+    if (pendingPeerId) {
+      const match = result.conversations.find(
+        (conversation) => conversation.peerId === pendingPeerId
+      )
+      pendingPeerIdRef.current = null
+      setActiveId(match?.id ?? null)
+      return
+    }
+
+    if (role === "intern") {
+      setActiveId((current) => current ?? result.conversations[0]?.id ?? null)
+    }
+  }, [role])
+
   React.useEffect(() => {
-    const current = Date.now()
-    setNowMs(current)
-    // Rebase seed timestamps against real time so the 10-minute edit window works.
-    setConversations((prev) =>
-      prev.map((conversation) => ({
-        ...conversation,
-        messages: conversation.messages.map((message) => ({
-          ...message,
-          sentAt: current - (SEED_NOW - message.sentAt),
-        })),
-      }))
-    )
+    setNowMs(Date.now())
     const intervalId = setInterval(() => setNowMs(Date.now()), 30_000)
     return () => {
       clearInterval(intervalId)
@@ -296,16 +181,43 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     }
   }, [])
 
+  React.useEffect(() => {
+    function onOpenMessages(event: Event) {
+      const detail = (event as CustomEvent<OpenMessagesDetail>).detail
+      if (detail?.peerId) pendingPeerIdRef.current = detail.peerId
+      setOpen(true)
+    }
+
+    window.addEventListener("inkdot-open-messages", onOpenMessages)
+    return () =>
+      window.removeEventListener("inkdot-open-messages", onOpenMessages)
+  }, [])
+
+  React.useEffect(() => {
+    if (!open) return
+    markMessagesSeen()
+    void refreshConversations()
+  }, [open, refreshConversations, markMessagesSeen])
+
+  React.useEffect(() => {
+    if (open) return
+    void refreshInbox()
+  }, [open, refreshInbox])
+
   function queueUndo(next: UndoState) {
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
     setUndo(next)
     undoTimeoutRef.current = setTimeout(() => {
+      if (next.type === "chat" && pendingChatDeleteRef.current === next.conversation.id) {
+        void deleteConversationAction(next.conversation.id)
+        pendingChatDeleteRef.current = null
+      }
       setUndo(null)
       undoTimeoutRef.current = null
     }, UNDO_WINDOW_MS)
   }
 
-  function undoDelete() {
+  async function undoDelete() {
     if (!undo) return
 
     if (undoTimeoutRef.current) {
@@ -314,20 +226,27 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     }
 
     if (undo.type === "message") {
-      setConversations((prev) =>
-        prev.map((conversation) => {
-          if (conversation.id !== undo.conversationId) return conversation
-          const messages = [...conversation.messages]
-          messages.splice(undo.index, 0, undo.message)
-          const last = messages[messages.length - 1]
-          return {
-            ...conversation,
-            preview: last?.text ?? conversation.preview,
-            messages,
-          }
-        })
-      )
+      const result = await restoreMessageAction({
+        conversationId: undo.conversationId,
+        message: undo.message,
+      })
+      if (!result.error) {
+        setConversations((prev) =>
+          prev.map((conversation) => {
+            if (conversation.id !== undo.conversationId) return conversation
+            const messages = [...conversation.messages]
+            messages.splice(undo.index, 0, result.message ?? undo.message)
+            const last = messages[messages.length - 1]
+            return {
+              ...conversation,
+              preview: last?.text ?? conversation.preview,
+              messages,
+            }
+          })
+        )
+      }
     } else {
+      pendingChatDeleteRef.current = null
       setConversations((prev) => {
         const next = [...prev]
         next.splice(undo.index, 0, undo.conversation)
@@ -357,7 +276,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
   const visibleMessages = React.useMemo(() => {
     if (!activeConversation) return []
     const query = searchQuery.trim().toLowerCase()
-    if (!query || !activeConversation) return activeConversation.messages
+    if (!query) return activeConversation.messages
     return activeConversation.messages.filter(
       (message) =>
         message.text.toLowerCase().includes(query) ||
@@ -376,31 +295,33 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     )
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = draft.trim()
     if ((!text && !attachment) || !activeConversation || isRecording) return
 
-    const sentAt = Date.now()
-    const nextMessage: ChatMessage = {
-      id: `${sentAt}`,
-      from: "me",
-      text: text || (attachment ? `Sent ${attachment.name}` : ""),
-      time: formatTime(sentAt),
-      sentAt,
-      attachment: attachment ?? undefined,
-      reactions: [],
+    const pendingAttachment = attachment
+    setDraft("")
+    setAttachment(null)
+
+    const result = await sendMessageAction({
+      conversationId: activeConversation.id,
+      text,
+      attachment: pendingAttachment,
+    })
+    if (result.error || !result.message) {
+      setDraft(text)
+      setAttachment(pendingAttachment)
+      return
     }
 
     updateConversation(activeConversation.id, (conversation) => ({
       ...conversation,
-      preview: nextMessage.text,
-      messages: [...conversation.messages, nextMessage],
+      preview: result.message!.text,
+      messages: [...conversation.messages, result.message!],
     }))
-    setDraft("")
-    setAttachment(null)
   }
 
-  function saveEdit(messageId: string) {
+  async function saveEdit(messageId: string) {
     if (!activeConversation) return
     const text = editDraft.trim()
     if (!text) return
@@ -413,6 +334,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
       return
     }
 
+    const previous = target.text
     updateConversation(activeConversation.id, (conversation) => {
       const messages = conversation.messages.map((message) =>
         message.id === messageId
@@ -428,9 +350,26 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     })
     setEditingId(null)
     setEditDraft("")
+
+    const result = await editMessageAction({ messageId, text })
+    if (result.error) {
+      updateConversation(activeConversation.id, (conversation) => {
+        const messages = conversation.messages.map((message) =>
+          message.id === messageId
+            ? { ...message, text: previous, edited: target.edited }
+            : message
+        )
+        const last = messages[messages.length - 1]
+        return {
+          ...conversation,
+          preview: last?.text ?? conversation.preview,
+          messages,
+        }
+      })
+    }
   }
 
-  function deleteMessage(messageId: string) {
+  async function removeMessage(messageId: string) {
     if (!activeConversation) return
 
     const index = activeConversation.messages.findIndex(
@@ -461,6 +400,8 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
       setEditingId(null)
       setEditDraft("")
     }
+
+    await deleteMessageAction(messageId)
   }
 
   function deleteChat(conversationId: string) {
@@ -471,6 +412,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     if (!conversation || index < 0) return
 
     const wasActive = activeId === conversationId
+    pendingChatDeleteRef.current = conversationId
     queueUndo({
       type: "chat",
       conversation,
@@ -489,22 +431,37 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
     }
   }
 
-  function toggleReaction(messageId: string, emoji: string) {
+  async function toggleReaction(messageId: string, emoji: string) {
     if (!activeConversation) return
+
+    const target = activeConversation.messages.find(
+      (message) => message.id === messageId
+    )
+    if (!target) return
+
+    const hasReaction = target.reactions.includes(emoji)
+    const reactions = hasReaction
+      ? target.reactions.filter((item) => item !== emoji)
+      : [...target.reactions, emoji]
 
     updateConversation(activeConversation.id, (conversation) => ({
       ...conversation,
-      messages: conversation.messages.map((message) => {
-        if (message.id !== messageId) return message
-        const hasReaction = message.reactions.includes(emoji)
-        return {
-          ...message,
-          reactions: hasReaction
-            ? message.reactions.filter((item) => item !== emoji)
-            : [...message.reactions, emoji],
-        }
-      }),
+      messages: conversation.messages.map((message) =>
+        message.id === messageId ? { ...message, reactions } : message
+      ),
     }))
+
+    const result = await setMessageReactions({ messageId, reactions })
+    if (result.error) {
+      updateConversation(activeConversation.id, (conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) =>
+          message.id === messageId
+            ? { ...message, reactions: target.reactions }
+            : message
+        ),
+      }))
+    }
   }
 
   function onPickFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -522,13 +479,18 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
       showSwipeHandle
     >
       <DrawerTrigger
-        aria-label="Messages"
+        aria-label={
+          unreadMessages > 0
+            ? `Messages, ${unreadMessages} unread`
+            : "Messages"
+        }
         className={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "rounded-sm border border-border"
+          "relative rounded-sm border border-border"
         )}
       >
         <MessageCircle />
+        <CountBadge count={unreadMessages} />
       </DrawerTrigger>
 
       <DrawerContent className="data-[swipe-direction=right]:[--drawer-content-width:100%] sm:data-[swipe-direction=right]:[--drawer-content-width:28rem]">
@@ -623,7 +585,15 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
         {!activeConversation ? (
           <>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-              {filteredConversations.length === 0 ? (
+              {loading ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Loading chats…
+                </p>
+              ) : loadError ? (
+                <p className="px-4 py-8 text-center text-sm text-destructive">
+                  {loadError}
+                </p>
+              ) : filteredConversations.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No chats found.
                 </p>
@@ -697,7 +667,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                 <button
                   type="button"
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                  onClick={undoDelete}
+                  onClick={() => void undoDelete()}
                 >
                   Undo
                 </button>
@@ -713,7 +683,9 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                     <MessageScrollerContent>
                       {visibleMessages.length === 0 ? (
                         <p className="py-8 text-center text-sm text-muted-foreground">
-                          No messages match your search.
+                          {activeConversation.messages.length === 0
+                            ? "No messages yet. Say hello."
+                            : "No messages match your search."}
                         </p>
                       ) : (
                         visibleMessages.map((message) => {
@@ -763,7 +735,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                       >
                                         <DropdownMenuItem
                                           onClick={() =>
-                                            toggleReaction(message.id, "👍")
+                                            void toggleReaction(message.id, "👍")
                                           }
                                         >
                                           <SmilePlus />
@@ -787,7 +759,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                             <DropdownMenuItem
                                               variant="destructive"
                                               onClick={() =>
-                                                deleteMessage(message.id)
+                                                void removeMessage(message.id)
                                               }
                                             >
                                               <Trash2 />
@@ -824,7 +796,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                             onKeyDown={(event) => {
                                               if (event.key === "Enter") {
                                                 event.preventDefault()
-                                                saveEdit(message.id)
+                                                void saveEdit(message.id)
                                               }
                                               if (event.key === "Escape") {
                                                 setEditingId(null)
@@ -851,7 +823,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                               buttonVariants({ size: "xs" })
                                             )}
                                             onClick={() =>
-                                              saveEdit(message.id)
+                                              void saveEdit(message.id)
                                             }
                                           >
                                             Save
@@ -890,7 +862,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                                 type="button"
                                                 className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-sm leading-none"
                                                 onClick={() =>
-                                                  toggleReaction(
+                                                  void toggleReaction(
                                                     message.id,
                                                     emoji
                                                   )
@@ -935,7 +907,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                                               type="button"
                                               className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-base hover:bg-muted"
                                               onClick={() =>
-                                                toggleReaction(
+                                                void toggleReaction(
                                                   message.id,
                                                   emoji
                                                 )
@@ -974,7 +946,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
                     className={cn(
                       buttonVariants({ variant: "outline", size: "sm" })
                     )}
-                    onClick={undoDelete}
+                    onClick={() => void undoDelete()}
                   >
                     Undo
                   </button>
@@ -1005,7 +977,7 @@ export function MessagesDrawer({ role }: MessagesDrawerProps) {
               <form
                 onSubmit={(event) => {
                   event.preventDefault()
-                  sendMessage()
+                  void sendMessage()
                 }}
               >
                 <input

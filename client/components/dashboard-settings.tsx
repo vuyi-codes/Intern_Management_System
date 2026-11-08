@@ -29,12 +29,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { roleLabels, type Role } from "@/lib/nav"
-import {
-  getDefaultSettings,
-  getStoredSettings,
-  setStoredSettings,
-  type RoleSettings,
-} from "@/lib/settings"
+import { getDefaultSettings, type RoleSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 
 function ToggleRow({
@@ -96,7 +91,7 @@ export function DashboardSettings({
   const [error, setError] = React.useState("")
 
   React.useEffect(() => {
-    setSettings(remote ?? getStoredSettings(role))
+    setSettings(remote ?? getDefaultSettings(role))
     setSaved(false)
     setError("")
   }, [role, remote])
@@ -151,48 +146,35 @@ export function DashboardSettings({
     event.preventDefault()
     setSaving(true)
     setError("")
-    if (remote) {
-      const result =
-        role === "admin"
-          ? await saveAdminSettings(settings)
-          : await saveUserSettings(settings)
-      setSaving(false)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      setSaved(true)
-      router.refresh()
+    const result =
+      role === "admin"
+        ? await saveAdminSettings(settings)
+        : await saveUserSettings(settings)
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
       return
     }
-    setStoredSettings(role, settings)
-    window.setTimeout(() => {
-      setSaving(false)
-      setSaved(true)
-    }, 500)
+    setSaved(true)
+    router.refresh()
   }
 
   async function handleReset() {
     const defaults = getDefaultSettings(role)
     setSettings(defaults)
     setError("")
-    if (remote) {
-      setSaving(true)
-      const result =
-        role === "admin"
-          ? await saveAdminSettings(defaults)
-          : await saveUserSettings(defaults)
-      setSaving(false)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      setSaved(true)
-      router.refresh()
+    setSaving(true)
+    const result =
+      role === "admin"
+        ? await saveAdminSettings(defaults)
+        : await saveUserSettings(defaults)
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
       return
     }
-    setStoredSettings(role, defaults)
     setSaved(true)
+    router.refresh()
   }
 
   const triggerClass = cn(

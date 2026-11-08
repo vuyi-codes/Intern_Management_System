@@ -59,26 +59,10 @@ export const STOCK_AVATARS: StockAvatar[] = [
   },
 ]
 
-const storageKey = (role: Role) => `inkdot-avatar:${role}`
-
-export function getStoredAvatar(role: Role): string | undefined {
-  if (typeof window === "undefined") return undefined
-  try {
-    return localStorage.getItem(storageKey(role)) ?? undefined
-  } catch {
-    return undefined
-  }
-}
-
-export function setStoredAvatar(role: Role, src: string | undefined) {
+/** Notify client widgets (nav avatar, etc.) after a successful profile avatar change. */
+export function notifyAvatarChange(role: Role, src: string | undefined) {
   if (typeof window === "undefined") return
-  try {
-    if (!src) localStorage.removeItem(storageKey(role))
-    else localStorage.setItem(storageKey(role), src)
-    window.dispatchEvent(
-      new CustomEvent("inkdot-avatar-change", { detail: { role, src } })
-    )
-  } catch {
-    // ignore quota / private mode errors
-  }
+  window.dispatchEvent(
+    new CustomEvent("inkdot-avatar-change", { detail: { role, src } })
+  )
 }

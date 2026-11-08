@@ -9,6 +9,7 @@ import type { InternStatus } from "@/lib/interns"
 import type { ProgrammeStatus } from "@/lib/programmes"
 import type { RoleSettings } from "@/lib/settings"
 import type { SupervisorStatus } from "@/lib/supervisors"
+import type { Json } from "@/types/database"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { createClient } from "@/utils/supabase/server"
 
@@ -374,9 +375,9 @@ export async function saveAdminSettings(
   const supabase = createClient(await cookies())
   const { error: userError } = await supabase.from("user_settings").upsert({
     user_id: profile.id,
-    notifications: settings.notifications,
-    preferences: settings.preferences,
-    privacy: settings.privacy,
+    notifications: settings.notifications as Json,
+    preferences: settings.preferences as Json,
+    privacy: settings.privacy as Json,
   })
   if (userError) return { error: userError.message }
 
