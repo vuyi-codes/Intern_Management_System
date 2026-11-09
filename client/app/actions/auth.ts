@@ -15,6 +15,7 @@ import { createClient } from "@/utils/supabase/server"
 export type AuthActionState = {
   error?: string
   success?: string
+  redirectTo?: string
 }
 
 async function loadProfileRole(userId: string): Promise<Role | null> {
@@ -63,7 +64,10 @@ export async function signInWithPassword(
     return { error: "Your account profile could not be loaded." }
   }
 
-  redirect(dashboardPathForRole(role))
+  // Return a path for the client to navigate — redirect() inside
+  // useActionState can surface as "unexpected response from the server".
+  revalidatePath("/", "layout")
+  return { redirectTo: dashboardPathForRole(role) }
 }
 
 export async function signInWithGoogle(): Promise<AuthActionState> {
@@ -95,7 +99,7 @@ export async function signOut() {
     return { error: error.message }
   }
   revalidatePath("/", "layout")
-  redirect("/login")
+  return { success: true as const }
 }
 
 export async function getViewerProfile(): Promise<Profile | null> {

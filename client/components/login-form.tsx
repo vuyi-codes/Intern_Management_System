@@ -1,6 +1,7 @@
 "use client"
 
-import { useActionState, useState, useTransition } from "react"
+import { useActionState, useEffect, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { cn } from "cn"
 
@@ -31,6 +32,7 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [state, formAction, isPending] = useActionState(
     signInWithPassword,
@@ -38,6 +40,12 @@ export function LoginForm({
   )
   const [googlePending, startGoogle] = useTransition()
   const [googleError, setGoogleError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!state.redirectTo) return
+    router.replace(state.redirectTo)
+    router.refresh()
+  }, [state.redirectTo, router])
 
   function handleGoogle() {
     setGoogleError(null)
@@ -47,7 +55,7 @@ export function LoginForm({
     })
   }
 
-  const busy = isPending || googlePending
+  const busy = isPending || googlePending || Boolean(state.redirectTo)
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>

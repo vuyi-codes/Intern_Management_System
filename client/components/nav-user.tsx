@@ -100,8 +100,10 @@ export function NavUser({ user }: { user: User }) {
   const displayUser = { ...user, avatar }
 
   async function handleLogout() {
-    await signOut()
-    router.push("/login")
+    const result = await signOut()
+    if (result?.error) return
+    router.replace("/login")
+    router.refresh()
   }
 
   function openAccount() {

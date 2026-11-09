@@ -9,8 +9,10 @@ import {
   Plus,
   Search,
   UserPlus,
+  UserRoundPlus,
 } from "lucide-react"
 
+import { AdminCreateUserForm } from "@/components/admin-create-user-form"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -144,6 +146,7 @@ export function AdminInternsManager({
   const [programmeFilter, setProgrammeFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [enrolOpen, setEnrolOpen] = React.useState(false)
+  const [createOpen, setCreateOpen] = React.useState(false)
   const [viewIntern, setViewIntern] = React.useState<AdminIntern | null>(null)
   const [editIntern, setEditIntern] = React.useState<AdminIntern | null>(null)
   const [form, setForm] = React.useState<InternForm>(emptyForm)
@@ -297,10 +300,20 @@ export function AdminInternsManager({
             <p className="text-sm text-destructive">{notice}</p>
           ) : null}
         </div>
-        <Button onClick={openEnrol} className="shrink-0">
-          <Plus />
-          Enrol intern
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="outline"
+            onClick={() => setCreateOpen(true)}
+            className="shrink-0"
+          >
+            <UserRoundPlus />
+            Create intern account
+          </Button>
+          <Button onClick={openEnrol} className="shrink-0">
+            <Plus />
+            Enrol intern
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -604,22 +617,43 @@ export function AdminInternsManager({
         </CardFooter>
       </Card>
 
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
+            <DialogTitle>Create intern account</DialogTitle>
+            <DialogDescription>
+              Admins create auth accounts here. Public signup is disabled.
+            </DialogDescription>
+          </DialogHeader>
+          {createOpen ? (
+            <AdminCreateUserForm
+              defaultRole="intern"
+              fixedRole
+              onCancel={() => setCreateOpen(false)}
+              onSuccess={() => router.refresh()}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={enrolOpen} onOpenChange={setEnrolOpen}>
-        <DialogContent className="max-h-none max-w-2xl overflow-visible p-0">
-          <DialogHeader className="px-4 py-2.5">
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
             <DialogTitle>Enrol intern</DialogTitle>
             <DialogDescription>
               Add a new intern to a programme and assign a supervisor.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEnrol}>
-            <InternFormFields
-              form={form}
-              setForm={setForm}
-              programmes={programmes}
-              supervisors={supervisors}
-            />
-            <DialogFooter className="p-3">
+          <form onSubmit={handleEnrol} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <InternFormFields
+                form={form}
+                setForm={setForm}
+                programmes={programmes}
+                supervisors={supervisors}
+              />
+            </div>
+            <DialogFooter className="shrink-0 p-3">
               <Button
                 type="button"
                 variant="outline"
@@ -627,7 +661,7 @@ export function AdminInternsManager({
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={saving}>
                 <UserPlus />
                 Enrol
               </Button>
@@ -642,21 +676,23 @@ export function AdminInternsManager({
           if (!open) setEditIntern(null)
         }}
       >
-        <DialogContent className="max-h-none max-w-2xl overflow-visible p-0">
-          <DialogHeader className="px-4 py-2.5">
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
             <DialogTitle>Edit intern</DialogTitle>
             <DialogDescription>
               Update programme placement, supervisor, or status.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEdit}>
-            <InternFormFields
-              form={form}
-              setForm={setForm}
-              programmes={programmes}
-              supervisors={supervisors}
-            />
-            <DialogFooter className="p-3">
+          <form onSubmit={handleEdit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <InternFormFields
+                form={form}
+                setForm={setForm}
+                programmes={programmes}
+                supervisors={supervisors}
+              />
+            </div>
+            <DialogFooter className="shrink-0 p-3">
               <Button
                 type="button"
                 variant="outline"
@@ -774,137 +810,135 @@ function InternFormFields({
   )
 
   return (
-    <div className="grid gap-3 px-4 py-3">
-      <FieldGroup className="gap-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="intern-name">Full name</FieldLabel>
-            <Input
-              id="intern-name"
-              value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="intern-email">Email</FieldLabel>
-            <Input
-              id="intern-email"
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, email: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Programme</FieldLabel>
-            <DropdownMenu>
-              <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{programmeLabel}</span>
-                <ChevronDown className="size-4 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="min-w-52">
-                {programmes.map((programme) => (
+    <div className="grid gap-3 px-4 pt-4 pb-3">
+      <FieldGroup className="grid grid-cols-1 gap-4">
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="intern-name">Full name</FieldLabel>
+          <Input
+            id="intern-name"
+            value={form.name}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, name: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="intern-email">Email</FieldLabel>
+          <Input
+            id="intern-email"
+            type="email"
+            value={form.email}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, email: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel>Programme</FieldLabel>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerClass}>
+              <span className="truncate">{programmeLabel}</span>
+              <ChevronDown className="size-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-52">
+              {programmes.map((programme) => (
+                <DropdownMenuItem
+                  key={programme.id}
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, programmeId: programme.id }))
+                  }
+                  className="justify-between"
+                >
+                  {programme.name}
+                  {form.programmeId === programme.id && (
+                    <Check className="size-4" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel>Supervisor</FieldLabel>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerClass}>
+              <span className="truncate">{supervisorLabel}</span>
+              <ChevronDown className="size-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-52">
+              {supervisors.map((supervisor) => (
+                <DropdownMenuItem
+                  key={supervisor.id || "unassigned"}
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      supervisorId: supervisor.id,
+                    }))
+                  }
+                  className="justify-between"
+                >
+                  {supervisor.name}
+                  {form.supervisorId === supervisor.id && (
+                    <Check className="size-4" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="intern-start">Start date</FieldLabel>
+          <Input
+            id="intern-start"
+            type="date"
+            value={form.startDate}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, startDate: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="intern-end">End date</FieldLabel>
+          <Input
+            id="intern-end"
+            type="date"
+            value={form.endDate}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, endDate: event.target.value }))
+            }
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel>Status</FieldLabel>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerClass}>
+              <span>{form.status}</span>
+              <ChevronDown className="size-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-40">
+              {STATUS_FILTERS.filter((status) => status !== "All").map(
+                (status) => (
                   <DropdownMenuItem
-                    key={programme.id}
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, programmeId: programme.id }))
-                    }
-                    className="justify-between"
-                  >
-                    {programme.name}
-                    {form.programmeId === programme.id && (
-                      <Check className="size-4" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Field>
-          <Field>
-            <FieldLabel>Supervisor</FieldLabel>
-            <DropdownMenu>
-              <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{supervisorLabel}</span>
-                <ChevronDown className="size-4 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="min-w-52">
-                {supervisors.map((supervisor) => (
-                  <DropdownMenuItem
-                    key={supervisor.id || "unassigned"}
+                    key={status}
                     onClick={() =>
                       setForm((prev) => ({
                         ...prev,
-                        supervisorId: supervisor.id,
+                        status: status as InternStatus,
                       }))
                     }
                     className="justify-between"
                   >
-                    {supervisor.name}
-                    {form.supervisorId === supervisor.id && (
-                      <Check className="size-4" />
-                    )}
+                    {status}
+                    {form.status === status && <Check className="size-4" />}
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="intern-start">Start date</FieldLabel>
-            <Input
-              id="intern-start"
-              type="date"
-              value={form.startDate}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, startDate: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="intern-end">End date</FieldLabel>
-            <Input
-              id="intern-end"
-              type="date"
-              value={form.endDate}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, endDate: event.target.value }))
-              }
-            />
-          </Field>
-          <Field className="col-span-2 sm:col-span-1">
-            <FieldLabel>Status</FieldLabel>
-            <DropdownMenu>
-              <DropdownMenuTrigger className={triggerClass}>
-                <span>{form.status}</span>
-                <ChevronDown className="size-4 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="min-w-40">
-                {STATUS_FILTERS.filter((status) => status !== "All").map(
-                  (status) => (
-                    <DropdownMenuItem
-                      key={status}
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          status: status as InternStatus,
-                        }))
-                      }
-                      className="justify-between"
-                    >
-                      {status}
-                      {form.status === status && <Check className="size-4" />}
-                    </DropdownMenuItem>
-                  )
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Field>
-        </div>
+                )
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Field>
       </FieldGroup>
     </div>
   )

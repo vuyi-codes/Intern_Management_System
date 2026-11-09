@@ -9,8 +9,10 @@ import {
   Plus,
   Search,
   UserPlus,
+  UserRoundPlus,
 } from "lucide-react"
 
+import { AdminCreateUserForm } from "@/components/admin-create-user-form"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -146,6 +148,7 @@ export function AdminSupervisorsManager({
   const [departmentFilter, setDepartmentFilter] = React.useState("All")
   const [page, setPage] = React.useState(1)
   const [addOpen, setAddOpen] = React.useState(false)
+  const [createOpen, setCreateOpen] = React.useState(false)
   const [viewSupervisor, setViewSupervisor] =
     React.useState<AdminSupervisor | null>(null)
   const [editSupervisor, setEditSupervisor] =
@@ -326,10 +329,20 @@ export function AdminSupervisorsManager({
           </p>
           {notice ? <p className="text-sm text-destructive">{notice}</p> : null}
         </div>
-        <Button onClick={openAdd} className="shrink-0">
-          <Plus />
-          Add supervisor
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="outline"
+            onClick={() => setCreateOpen(true)}
+            className="shrink-0"
+          >
+            <UserRoundPlus />
+            Create supervisor account
+          </Button>
+          <Button onClick={openAdd} className="shrink-0">
+            <Plus />
+            Add supervisor
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -657,22 +670,47 @@ export function AdminSupervisorsManager({
         </CardFooter>
       </Card>
 
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
+            <DialogTitle>Create supervisor account</DialogTitle>
+            <DialogDescription>
+              Creates a Supabase auth user and promotes their profile to
+              supervisor.
+            </DialogDescription>
+          </DialogHeader>
+          {createOpen ? (
+            <AdminCreateUserForm
+              defaultRole="supervisor"
+              fixedRole
+              onCancel={() => setCreateOpen(false)}
+              onSuccess={() => router.refresh()}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-h-none max-w-2xl overflow-visible p-0">
-          <DialogHeader className="px-4 py-2.5">
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
             <DialogTitle>Add supervisor</DialogTitle>
             <DialogDescription>
               Create a mentor profile and set programme coverage.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAdd}>
-            <SupervisorFormFields
-              form={form}
-              setForm={setForm}
-              toggleProgramme={toggleProgramme}
-              programmes={programmes}
-            />
-            <DialogFooter className="p-3">
+          <form
+            onSubmit={handleAdd}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <SupervisorFormFields
+                form={form}
+                setForm={setForm}
+                toggleProgramme={toggleProgramme}
+                programmes={programmes}
+              />
+            </div>
+            <DialogFooter className="shrink-0 p-3">
               <Button
                 type="button"
                 variant="outline"
@@ -680,7 +718,7 @@ export function AdminSupervisorsManager({
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={saving}>
                 <UserPlus />
                 Add
               </Button>
@@ -695,21 +733,26 @@ export function AdminSupervisorsManager({
           if (!open) setEditSupervisor(null)
         }}
       >
-        <DialogContent className="max-h-none max-w-2xl overflow-visible p-0">
-          <DialogHeader className="px-4 py-2.5">
+        <DialogContent className="max-w-lg overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-4 py-3">
             <DialogTitle>Edit supervisor</DialogTitle>
             <DialogDescription>
               Update department, capacity, or programme coverage.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEdit}>
-            <SupervisorFormFields
-              form={form}
-              setForm={setForm}
-              toggleProgramme={toggleProgramme}
-              programmes={programmes}
-            />
-            <DialogFooter className="p-3">
+          <form
+            onSubmit={handleEdit}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <SupervisorFormFields
+                form={form}
+                setForm={setForm}
+                toggleProgramme={toggleProgramme}
+                programmes={programmes}
+              />
+            </div>
+            <DialogFooter className="shrink-0 p-3">
               <Button
                 type="button"
                 variant="outline"
@@ -717,7 +760,9 @@ export function AdminSupervisorsManager({
               >
                 Cancel
               </Button>
-              <Button type="submit">Save changes</Button>
+              <Button type="submit" disabled={saving}>
+                Save changes
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -837,134 +882,130 @@ function SupervisorFormFields({
   )
 
   return (
-    <div className="grid gap-3 px-4 py-3">
-      <FieldGroup className="gap-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="supervisor-name">Full name</FieldLabel>
-            <Input
-              id="supervisor-name"
-              value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="supervisor-email">Email</FieldLabel>
-            <Input
-              id="supervisor-email"
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, email: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="supervisor-phone">Phone</FieldLabel>
-            <Input
-              id="supervisor-phone"
-              type="tel"
-              value={form.phone}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, phone: event.target.value }))
-              }
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="supervisor-title">Job title</FieldLabel>
-            <Input
-              id="supervisor-title"
-              value={form.title}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, title: event.target.value }))
-              }
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Department</FieldLabel>
-            <DropdownMenu>
-              <DropdownMenuTrigger className={triggerClass}>
-                <span className="truncate">{form.department}</span>
-                <ChevronDown className="size-4 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="min-w-52">
-                {DEPARTMENTS.map((department) => (
+    <div className="grid gap-3 px-4 pt-4 pb-3">
+      <FieldGroup className="grid grid-cols-1 gap-4">
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-name">Full name</FieldLabel>
+          <Input
+            id="supervisor-name"
+            value={form.name}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, name: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-email">Email</FieldLabel>
+          <Input
+            id="supervisor-email"
+            type="email"
+            value={form.email}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, email: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-phone">Phone</FieldLabel>
+          <Input
+            id="supervisor-phone"
+            type="tel"
+            value={form.phone}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, phone: event.target.value }))
+            }
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-title">Job title</FieldLabel>
+          <Input
+            id="supervisor-title"
+            value={form.title}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, title: event.target.value }))
+            }
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel>Department</FieldLabel>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerClass}>
+              <span className="truncate">{form.department}</span>
+              <ChevronDown className="size-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-52">
+              {DEPARTMENTS.map((department) => (
+                <DropdownMenuItem
+                  key={department}
+                  onClick={() => setForm((prev) => ({ ...prev, department }))}
+                  className="justify-between"
+                >
+                  {department}
+                  {form.department === department && (
+                    <Check className="size-4" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-capacity">Capacity</FieldLabel>
+          <Input
+            id="supervisor-capacity"
+            type="number"
+            min={1}
+            max={20}
+            value={form.capacity}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, capacity: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel htmlFor="supervisor-start">Start date</FieldLabel>
+          <Input
+            id="supervisor-start"
+            type="date"
+            value={form.startDate}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, startDate: event.target.value }))
+            }
+            required
+          />
+        </Field>
+        <Field className="min-w-0 flex-col">
+          <FieldLabel>Status</FieldLabel>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerClass}>
+              <span>{form.status}</span>
+              <ChevronDown className="size-4 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-40">
+              {STATUS_FILTERS.filter((status) => status !== "All").map(
+                (status) => (
                   <DropdownMenuItem
-                    key={department}
+                    key={status}
                     onClick={() =>
-                      setForm((prev) => ({ ...prev, department }))
+                      setForm((prev) => ({
+                        ...prev,
+                        status: status as SupervisorStatus,
+                      }))
                     }
                     className="justify-between"
                   >
-                    {department}
-                    {form.department === department && (
-                      <Check className="size-4" />
-                    )}
+                    {status}
+                    {form.status === status && <Check className="size-4" />}
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="supervisor-capacity">Capacity</FieldLabel>
-            <Input
-              id="supervisor-capacity"
-              type="number"
-              min={1}
-              max={20}
-              value={form.capacity}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, capacity: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="supervisor-start">Start date</FieldLabel>
-            <Input
-              id="supervisor-start"
-              type="date"
-              value={form.startDate}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, startDate: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Status</FieldLabel>
-            <DropdownMenu>
-              <DropdownMenuTrigger className={triggerClass}>
-                <span>{form.status}</span>
-                <ChevronDown className="size-4 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="min-w-40">
-                {STATUS_FILTERS.filter((status) => status !== "All").map(
-                  (status) => (
-                    <DropdownMenuItem
-                      key={status}
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          status: status as SupervisorStatus,
-                        }))
-                      }
-                      className="justify-between"
-                    >
-                      {status}
-                      {form.status === status && <Check className="size-4" />}
-                    </DropdownMenuItem>
-                  )
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Field>
-        </div>
-        <Field>
+                )
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Field>
+        <Field className="min-w-0 flex-col">
           <FieldLabel>Programmes</FieldLabel>
           <div className="flex flex-wrap gap-1.5">
             {programmes.map((programme) => {
