@@ -60,15 +60,20 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+  // Redirecting server-action / RSC POSTs breaks the flight response and
+  // surfaces as: "An unexpected response was received from the server."
+  const isServerAction = request.headers.has("next-action")
+  const isMutableRequest = request.method !== "GET" && request.method !== "HEAD"
 
-  if (!user && !isPublicPath(pathname)) {
+  if (!user && !isPublicPath(pathname) && !isServerAction) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     url.searchParams.set("next", pathname)
     return NextResponse.redirect(url)
   }
 
-  if (user && (pathname === "/login" || pathname === "/")) {
+  // Keep `/` as the public homepage. Only bounce signed-in users off `/login`.
+  if (user && pathname === "/login" && !isServerAction && !isMutableRequest) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -85,7 +90,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   const pathRole = roleFromPath(pathname)
-  if (user && pathRole) {
+  if (user && pathRole && !isServerAction && !isMutableRequest) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")

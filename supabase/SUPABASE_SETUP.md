@@ -30,11 +30,12 @@ Use any passwords you control. New users get a `profiles` row via `handle_new_us
 
 ## 3. Seed (optional demo data)
 
-Run `seed.sql` after migrations + auth users. It:
+Run `seed.sql` after migrations + auth users. It is idempotent (safe to re-run). It:
 
 - Promotes roles / fills profile fields
-- Links supervisors, programmes, interns, tasks, logs, reviews
-- Inserts sample notifications (needs `0003`)
+- Links supervisors, programmes, interns, tasks, logs, reviews, modules
+- Adds extended demo coverage (extra programmes, tasks, logs, reviews, profiles)
+- Inserts sample notifications and mentor↔intern DMs (needs `0003` / `0004`)
 
 ## 4. Client env
 

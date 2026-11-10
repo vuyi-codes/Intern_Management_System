@@ -51,7 +51,13 @@ export function LoginForm({
     setGoogleError(null)
     startGoogle(async () => {
       const result = await signInWithGoogle()
-      if (result?.error) setGoogleError(result.error)
+      if (result?.error) {
+        setGoogleError(result.error)
+        return
+      }
+      if (result?.redirectTo) {
+        window.location.assign(result.redirectTo)
+      }
     })
   }
 

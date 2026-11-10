@@ -1,27 +1,21 @@
 import { Suspense } from "react"
 import { connection } from "next/server"
-import { redirect } from "next/navigation"
 
+import { HomeLanding } from "@/components/home-landing"
 import { dashboardPathForRole, getCurrentProfile } from "@/lib/auth"
 
-async function HomeRedirect() {
+async function HomePageContent() {
   await connection()
   const profile = await getCurrentProfile()
-  if (!profile) redirect("/login")
-  redirect(dashboardPathForRole(profile.role))
-  return null
+  const dashboardHref = profile ? dashboardPathForRole(profile.role) : null
+
+  return <HomeLanding dashboardHref={dashboardHref} />
 }
 
 export default function Home() {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-svh items-center justify-center p-6">
-          <p className="text-sm text-muted-foreground">Redirecting…</p>
-        </main>
-      }
-    >
-      <HomeRedirect />
+    <Suspense fallback={<HomeLanding />}>
+      <HomePageContent />
     </Suspense>
   )
 }

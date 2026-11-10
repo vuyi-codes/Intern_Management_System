@@ -1,7 +1,6 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 import {
@@ -86,7 +85,7 @@ export async function signInWithGoogle(): Promise<AuthActionState> {
   }
 
   if (data.url) {
-    redirect(data.url)
+    return { redirectTo: data.url }
   }
 
   return { error: "Could not start Google sign-in." }
